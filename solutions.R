@@ -14,9 +14,14 @@
 # Since mean = alpha/beta and var = alpha/beta^2, we can plugin the requested values and solve
 # this system of two equations:
 
-# alpha/beta = 0.75 -> alpha = 0.75*beta -> (0.75*beta)/beta^2 = 0.375 
-# -> 0.75/beta = 0.375 -> beta = 2 -> alpha/2 = 0.75 -> alpha = 1.5
-# so alpha=shape=1.5 and beta=rate=2
+# alpha/beta = 0.75 
+# -> alpha = 0.75*beta 
+# -> (0.75*beta)/beta^2 = 0.375 
+# -> 0.75/beta = 0.375 
+# -> beta = 2 
+# -> alpha/2 = 0.75 
+# -> alpha = 1.5
+# Result: alpha=shape=1.5 and beta=rate=2
 
 # The adapted prior becomes:
 par1 = c("beta"=1.5, "sigma"=2) 
@@ -101,8 +106,8 @@ ggplot() +
 
 # b) Modify prior
 
-lower2 = c("beta"=1e-6, "sigma"=1e-6, "rho"=1e-6)
-upper2 = c("beta"=3.0, "sigma"=1.0, "rho"=1.0)
+lower2 = c("beta"=0, "sigma"=0, "rho"=0)
+upper2 = c("beta"=Inf, "sigma"=1.0, "rho"=1.0)
 par1 = c("beta"=1.5, "sigma"=2.0, "rho"=1.0) 
 par2 = c("beta"=2.0, "sigma"=5.0, "rho"=1.0)
 
@@ -307,8 +312,8 @@ ggplot() +
 
 # c) Modify the prior
 
-lower3 = c("beta"=1e-6, "sigma"=1e-6, "rho"=1e-6, "k"=0.0)
-upper3 = c("beta"=3.0, "sigma"=1.0, "rho"=1.0, "k"=1.0)
+lower3 = c("beta"=0, "sigma"=0, "rho"=0, "k"=0.0)
+upper3 = c("beta"=5.0, "sigma"=1.0, "rho"=1.0, "k"=1.0)
 par1 = c("beta"=1.5, "sigma"=2.0, "rho"=1.0, "k"=1.0) 
 par2 = c("beta"=2.0, "sigma"=5.0, "rho"=1.0, "k"=1.0)
 
@@ -412,6 +417,8 @@ ll_NB3_wrapper(theta3[index3])
 # f) Assess diagnostics and fit
 plot(chain3)
 
+nburn = 20000
+
 plot(chain3, parametersOnly = TRUE, start =nburn)
 
 gelmanDiagnostics(chain3, plot=TRUE, start=nburn)
@@ -468,6 +475,7 @@ ggplot() +
 
 # f) beta and sigma are strongly correlated (as before), but now 
 # beta and sigma are also very wide and not very informative. 
-# Does tightening the priors improve this? 
+x=bayesianSetup3$prior$sampler(100000)
+any(is.infinite(bayesianSetup3$prior$density(x)))
 
 

@@ -7,6 +7,9 @@
 # For all exercises, append the number of the exercise to your modified functions or objects
 # e.g. "prior1 <- ... " for a prior created in exercise 1 and "chain1 <- ..." for the chain
 
+# NEVER NEVER adjust the window panes while you are fitting. 
+# It could crash the R session ("the bomb") and you need to start from scratch.
+
 
 # Household stuff  -------------------------------
 
@@ -52,9 +55,10 @@ lower = c("beta"=1e-6, "sigma"=1e-6)
 upper = c("beta"=5, "sigma"=1)
 
 
-# Write a custom prior so that the 
-# 'beta' follows a Gamma distribution with a mean = 0.75 and a variance = 0.375. 
+# Write a custom prior such that the 
+# 'beta' parameter follows a Gamma distribution with a mean = 0.75 and a variance = 0.375. 
 # For the 'sigma' parameter, use the prior from the tutorial
+# HINT: check the wikipedia page to understand the properties of the Gamma distribution
 
 density1 <- ...
 
@@ -185,7 +189,7 @@ sample_k <- function(k) {
 
 # d) Fit the model with the new loglik function
 # Use the following MCMC settings
-mcmc_settings3 <- list(iterations = 90000, 
+mcmc_settings3 <- list(iterations = 150000, 
                       nrChains = 2)
 
 bayesianSetup3 <- createBayesianSetup(prior = prior3,
@@ -206,8 +210,62 @@ sample_posterior_NB3 <- ...
 
 fit_quantiles3 <- ...
 
-# f) Can you spot an issue with some of the marginal parameters? 
+# f) Can you spot an issue with the chains and with some of the marginal parameters? 
 # How can this potentially be improved?
+
+par1 = c("beta"=1.5, "sigma"=15.0, "rho"=1.0, "k"=1.0) 
+par2 = c("beta"=2.0, "sigma"=50.0, "rho"=1.0, "k"=1.0)
+
+density3 <- function(par) {
+  
+  return(
+    dgamma(par[1], # Beta 
+           shape = par1[["beta"]], 
+           rate =  par2[["beta"]], 
+           log = TRUE) + 
+      dbeta(par[2],  # Sigma
+            shape1 = par1[["sigma"]], 
+            shape2 = par2[["sigma"]], 
+            log = TRUE) +
+      dbeta(par[3], # rho
+            shape1 = par1[["rho"]], 
+            shape2 = par2[["rho"]], 
+            log = TRUE) +
+      dbeta(par[4], # rho
+            shape1 = par1[["k"]], 
+            shape2 = par2[["k"]], 
+            log = TRUE) 
+    
+  )
+}
+
+sampler3 <-  function(n=1){
+  
+  return(cbind(
+    
+    rgamma(n,
+           shape = par1[["beta"]], 
+           rate = par2[["beta"]]), 
+    rbeta(n, 
+          shape1 =  par1[["sigma"]], 
+          shape2 = par2[["sigma"]]),
+    rbeta(n, 
+          shape1 =  par1[["rho"]], 
+          shape2 = par2[["rho"]]),
+    rbeta(n, 
+          shape1 =  par1[["k"]], 
+          shape2 = par2[["k"]])
+  ))
+  
+}
+
+prior3 <- createPrior(density=density3, 
+                      sampler=sampler3, 
+                      lower=lower3, 
+                      upper=upper3)
+
+
+
 
 
 

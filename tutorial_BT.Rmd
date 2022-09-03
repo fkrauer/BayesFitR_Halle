@@ -171,7 +171,7 @@ estpars <- c("beta", "sigma") # parameters to estimate, can be modified
 index <- which(names(theta) %in% estpars) # index of estimated params
 
 # Priors
-lower = c("beta"=1e-6, "sigma"=1e-6)
+lower = c("beta"=0, "sigma"=0)
 upper = c("beta"=0.5, "sigma"=0.1)
 
 ```
@@ -234,7 +234,7 @@ Let's update the prior ranges and redo the prior predictive:
 
 ```{r}
 # Priors
-lower = c("beta"=1e-6, "sigma"=1e-6)
+lower = c("beta"=0, "sigma"=0)
 upper = c("beta"=5.0, "sigma"=1.0)
 
 prior_unif <- createUniformPrior(lower=lower, 
