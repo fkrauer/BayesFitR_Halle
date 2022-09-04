@@ -1,7 +1,13 @@
-# Solutions
+# Halle Summer School
+# Solutions to the exercises
+# Author: Fabienne Krauer
+# last updated: 04.09.2022
+# contact: fabienne.krauer@lshtm.ac.uk
+
 
 # Exercise 1 -------------------------------------------------------------------
 
+#b)
 # The Gamma distribution in R is modelled with dgamma() and rgamma(). 
 # The function allows two different parametrizations: 
 # Gamma(shape, rate) or Gamma(shape, scale). 
@@ -62,6 +68,7 @@ prior1 <- createPrior(density=density1,
                              lower=lower, 
                              upper=upper)
 
+# C) 
 # Setup the wrapper
 ll_Pois_wrapper <- function(par) {
   
@@ -78,7 +85,7 @@ ll_Pois_wrapper <- function(par) {
 # Test (should return the same as ll_pois())
 ll_Pois_wrapper(theta[index])
 
-# Check the fit
+# d) Check the fit
 fit_quantiles1 <- sample_posterior_Pois(chain1, theta, inits, times, model_SEIR, ndraw=500, nburn=10000, progress="text")
 
 # Plot fit
@@ -96,11 +103,11 @@ ggplot() +
 rho <- 0.4
 theta2 <- c(beta=beta, sigma=sigma, gamma=gamma, rho=rho)
 
-data2 <- data.frame(obs=sapply(traj$inc, function(x) rpois(1, x * theta2[["rho"]])),
+data2 <- data.frame(obs=sapply(traj1$inc, function(x) rpois(1, x * theta2[["rho"]])),
                     time = times)
 
 ggplot() + 
-  geom_line(data=traj, aes(x=time, y=inc)) +
+  geom_line(data=traj1, aes(x=time, y=inc)) +
   geom_point(data=data2, aes(x=time, y=obs))
 
 
@@ -299,14 +306,14 @@ sample_k_inv(100)
 k = 0.1
 theta3 <- c(beta=beta, sigma=sigma, gamma=gamma, rho=rho, k=k)
 
-traj <- model(times, inits, theta)
-data3 <- data.frame(obs=sapply(traj$inc, function(x) rnbinom(1, 
+traj3 <- model(times, inits, theta)
+data3 <- data.frame(obs=sapply(traj3$inc, function(x) rnbinom(1, 
                                                              mu = x*theta3[["rho"]], 
                                                              size=1/theta3[["k"]])),
                     time = times)
 
 ggplot() + 
-  geom_line(data=traj, aes(x=time, y=inc)) +
+  geom_line(data=traj3, aes(x=time, y=inc)) +
   geom_point(data=data3, aes(x=time, y=obs))
 
 
@@ -472,10 +479,178 @@ ggplot() +
   geom_ribbon(data=fit_quantiles3, aes(x=time, ymin=low95PPI, ymax=up95PPI), alpha=0.2, fill="red")
 
 
-
 # f) beta and sigma are strongly correlated (as before), but now 
 # beta and sigma are also very wide and not very informative. 
-x=bayesianSetup3$prior$sampler(100000)
-any(is.infinite(bayesianSetup3$prior$density(x)))
+# This could potentially be improved by tightening the priors for beta and sigma, e.g.
+
+# beta ~ Gamma(4.5, 6.0)
+# sigma ~ Beta(15, 50)
+
+# If you have some time left at the end of the exercises, 
+# you can re-fit this model with tighter priors
+
+
+# Exercise 4: ------------------------------------
+
+model_SEIRS <- function(times, inits, theta) {
+  
+  SEIR <- function(times, inits, theta) {
+    
+    S = inits[["S"]]
+    E = inits[["E"]]
+    I = inits[["I"]]
+    R = inits[["R"]]
+    N = S + E + I + R
+    
+    beta <- theta[["beta"]]
+    sigma <- theta[["sigma"]]
+    gamma <- theta[["gamma"]]
+    omega <- theta[["omega"]]
+    
+    dS <- -beta*S*I/N + omega*R
+    dE <- beta*S*I/N - sigma*E
+    dI <- sigma*E - gamma*I
+    dR <- gamma*I - omega*R
+    dC <- beta*S*I/N
+    list(c(dS, dE, dI, dR, dC))
+    
+  }  
+  
+  traj <- data.frame(lsoda(inits, times, SEIR, theta))
+  # Calculate the incidence per time step from the cumulative state:
+  traj$inc <- c(inits["I"], diff(traj$C))
+  return(traj)
+  
+}
+
+
+# The data were generated as follows:
+beta <- 0.2
+omega <- 1/180
+rho <- 0.12
+sigma <- 1/6
+gamma <- 1/7
+k <- 0.05
+
+theta4 <- c(beta=beta, sigma=sigma, gamma=gamma, omega=omega, rho=rho, k=k)
+inits4 <- c("S"=100000-1, "E"=0, "I"=1, "R"=0, "C"=1) 
+
+times4 <- seq(1:1000)
+
+traj4 <- model_SEIRS(times4, inits4, theta4)
+
+ggplot(traj4) +
+  geom_line(aes(x=time, y=inc))
+
+data4 <- data.frame(obs=sapply(traj4$inc, function(x) rnbinom(1, 
+                                                              mu = x * rho, 
+                                                              size=1/k)),
+                   time = times4)
+ggplot() + 
+  geom_line(data=traj4, aes(x=time, y=inc)) +
+  geom_point(data=data4, aes(x=time, y=obs))
+
+saveRDS(data4, "data_ex4.rds")
+
+
+# Set up the parameter vector and priors
+estpars4 <- c("beta", "gamma", "rho", "k") # parameters to estimate, can be modified
+index4 <- which(names(theta4) %in% estpars4) # index of estimated params
+theta4[index4]
+
+# We will fit a uniform prior for rho, and beta priors for the rest
+lower4 = c("beta"=0,  "gamma"=0, "rho"=0.05, "k"=0.0)
+upper4 = c("beta"=1.0,  "gamma" = 1.0, "rho"=0.2, "k"=1.0)
+par1 = c("beta"=1.5,  "gamma"=2, "k"=1.0) 
+par2 = c("beta"=4.0,  "gamma"=9, "k"=50)
+
+
+density4 <- function(par) {
+  
+  return(
+    dbeta(par[1], # Beta 
+          shape1 = par1[["beta"]], 
+          shape2 =  par2[["beta"]], 
+           log = TRUE) +
+      
+      dbeta(par[2], # gamma
+            shape1 = par1[["gamma"]], 
+            shape2 = par2[["gamma"]], 
+            log = TRUE) +
+      
+      dunif(par[3], # rho
+            min = lower4[["rho"]], 
+            max = upper4[["rho"]], 
+            log = TRUE) +
+  
+      dbeta(par[4], # k
+            shape1 = par1[["k"]], 
+            shape2 = par2[["k"]], 
+            log = TRUE) 
+    
+  )
+}
+
+sampler4 <-  function(n=1){
+  
+  return(cbind(
+    
+    rbeta(n,
+          shape1 = par1[["beta"]], 
+          shape2 = par2[["beta"]]), 
+    
+    rbeta(n, 
+          shape1 =  par1[["gamma"]], 
+          shape2 = par2[["gamma"]]),
+    
+    runif(n, 
+          min = lower4[["rho"]], 
+          max = upper4[["rho"]]),
+    
+    rbeta(n, 
+          shape1 =  par1[["k"]], 
+          shape2 = par2[["k"]])
+  ))
+  
+}
+
+prior4 <- createPrior(density=density4, 
+                      sampler=sampler4, 
+                      lower=lower4, 
+                      upper=upper4)
+
+
+# We will use the loglik NB function from exercise 3:
+ll_NB3(model_SEIRS, theta4, inits4, times4, data4)
+
+# Update the wrapper
+ll_NB4_wrapper <- function(par) {
+  
+  parX = theta4
+  parX[index4] = par
+  
+  return(ll_NB3(model=model_SEIRS,
+                theta=parX, 
+                inits=inits4, 
+                times=times4, 
+                data=data4))
+}    
+
+# Test
+ll_NB4_wrapper(theta4[index4])
+
+# Setup the MCMC and run
+mcmc_settings4 <- list(iterations = 90000, 
+                       nrChains = 2)
+
+bayesianSetup4 <- createBayesianSetup(prior = prior4,
+                                          likelihood = ll_NB4_wrapper,
+                                          names = names(theta4[index4]),
+                                          parallel = FALSE)
+
+system.time({chain4 <- runMCMC(bayesianSetup = bayesianSetup4, 
+                                    sampler = "DEzs", 
+                                    settings = mcmc_settings4)})
+
 
 

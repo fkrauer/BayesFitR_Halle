@@ -1,11 +1,17 @@
-# Script to fit a SEIR ODE  model with BayesianTools
+# Halle Summer School
+# Exercises to fit an ODE model with BayesianTools
 # Author: Fabienne Krauer
-# last updated: 15.08.2022
+# last updated: 04.09.2022
 # contact: fabienne.krauer@lshtm.ac.uk
 
 
+# Some notes:
+
 # For all exercises, append the number of the exercise to your modified functions or objects
 # e.g. "prior1 <- ... " for a prior created in exercise 1 and "chain1 <- ..." for the chain
+
+# You should try to go through the exercises in ascending order.
+# If you cannot figure one out, check and run the solutions before moving on to the next exercise.
 
 # NEVER NEVER adjust the window panes while you are fitting. 
 # It could crash the R session ("the bomb") and you need to start from scratch.
@@ -22,38 +28,26 @@ set.seed(42)
 # Prep   -------------------------------
 
 # load models
-source("func_models.R")
+source("func_model.R")
 
 # load functions for prior and posterior predictive and loglik function
 source("func_priorpred_Pois.R")
 source("func_posteriorpred_Pois.R")
 source("func_ll_Pois.R")
-
+source("func_params.R")
 
 
 # Exercise 1:  -------------------------------
 
-# Use the SEIR model and the parameters from the tutorial for this exercise: 
-beta <- 0.6
-sigma <- 1/5 # =1/duration of latency
-gamma <- 1/5 # = 1/duration of infectiousness
-theta <- c(beta=beta, sigma=sigma, gamma=gamma)
-inits <- c("S"=10000-1, "E"=0, "I"=1, "R"=0, "C"=1) 
+# a) load and plot the  synthetic data
+data1 <- readRDS("data_ex1.rds") 
 
-times <- seq(1:100)
-
-traj <- model_SEIR(times, inits, theta)
-
-data1 <- readRDS("data_ex1.rds") # load the synthetic data
-
-# Define the parameters to be estimated
-estpars <- c("beta", "sigma") # parameters to estimate, can be modified
+# b) Adjust the prior:
+# We will fit only to parameters for now:
+estpars <- c("beta", "sigma")
 index <- which(names(theta) %in% estpars) # index of estimated params
-
-# Define the boundaries of the Priors (we don't need it for gamma, but do it anyway)
 lower = c("beta"=1e-6, "sigma"=1e-6)
 upper = c("beta"=5, "sigma"=1)
-
 
 # Write a custom prior such that the 
 # 'beta' parameter follows a Gamma distribution with a mean = 0.75 and a variance = 0.375. 
@@ -64,11 +58,11 @@ density1 <- ...
 
 sampler1 <- ...
 
-# Setup the wrapper for the Loglik function:
+# c) Setup the wrapper for the Loglik function:
 ll_Pois_wrapper <- ...
 
 
-# Use the same MCMC settings as in the tutorial:
+# d) Use the same MCMC settings as in the tutorial:
 nchains <- 2
 iter_per_chain <- 20000
 mcmc_settings <- list(iterations = iter_per_chain, 
@@ -99,7 +93,8 @@ system.time({chain1 <- runMCMC(bayesianSetup = bayesianSetup1,
 data2 <- ...
 
 # b) Modify the prior. --> Use the prior function from the previous exercise as a template 
-# Assume a Beta() prior distribution for rho with shape1=1 and shape2=1
+# Assume that you don't know the underreporting and have to fit it. 
+# For this, assume a Beta() distribution for rho prior with shape1=1 and shape2=1
 # Note: you also need to modify the vectors that define the lower/upper bounds
 # and the vector that defines the parameters to be estimated (estpar)
 
@@ -140,6 +135,9 @@ sample_posterior_Pois2 <- ...
 
 fit_quantiles2 <- ...
 
+
+
+
 # Exercise 3: ------------------------------------
 
 
@@ -179,9 +177,10 @@ sample_k <- function(k) {
 
 
 # b) Generate new data from the same SEIR model, but this time with a Negative Binomial process
-# using the parametrization with k = 0.1 (which parametrization makes more sense for k = 0.1)?
+# using the parametrization with k = 0.1 (which means that we use size =1/k in the NegBi function). 
 
 # c) Modify the prior. Use the prior function from the previous exercise as a template 
+# Assume that you don't know the dispersion parameter k and have to fit it.
 # Assume a Beta() prior distribution for k with shape1=1 and shape2=1
 
 # d) Adapt the loglik function and the wrapper function. 
@@ -213,70 +212,72 @@ fit_quantiles3 <- ...
 # f) Can you spot an issue with the chains and with some of the marginal parameters? 
 # How can this potentially be improved?
 
-par1 = c("beta"=1.5, "sigma"=15.0, "rho"=1.0, "k"=1.0) 
-par2 = c("beta"=2.0, "sigma"=50.0, "rho"=1.0, "k"=1.0)
-
-density3 <- function(par) {
-  
-  return(
-    dgamma(par[1], # Beta 
-           shape = par1[["beta"]], 
-           rate =  par2[["beta"]], 
-           log = TRUE) + 
-      dbeta(par[2],  # Sigma
-            shape1 = par1[["sigma"]], 
-            shape2 = par2[["sigma"]], 
-            log = TRUE) +
-      dbeta(par[3], # rho
-            shape1 = par1[["rho"]], 
-            shape2 = par2[["rho"]], 
-            log = TRUE) +
-      dbeta(par[4], # rho
-            shape1 = par1[["k"]], 
-            shape2 = par2[["k"]], 
-            log = TRUE) 
-    
-  )
-}
-
-sampler3 <-  function(n=1){
-  
-  return(cbind(
-    
-    rgamma(n,
-           shape = par1[["beta"]], 
-           rate = par2[["beta"]]), 
-    rbeta(n, 
-          shape1 =  par1[["sigma"]], 
-          shape2 = par2[["sigma"]]),
-    rbeta(n, 
-          shape1 =  par1[["rho"]], 
-          shape2 = par2[["rho"]]),
-    rbeta(n, 
-          shape1 =  par1[["k"]], 
-          shape2 = par2[["k"]])
-  ))
-  
-}
-
-prior3 <- createPrior(density=density3, 
-                      sampler=sampler3, 
-                      lower=lower3, 
-                      upper=upper3)
+# If you have some time left at the end of the exercises, 
+# you can re-fit this model with an approach you think improves the posteriors
 
 
 
+# Exercise 4: ------------------------------------
 
+# For this exercise, you will use simulated data from model_SEIRS, but you
+# will not know the true parameter values or how the data were generated.
+# Use your knowledge from exercises 1-3 to fit a model of your choice to the data.
 
+# To make sure you can fit a model in useful time, 
+# you can make the following assumptions:
 
+# 1. The disease is introduced in a completely susceptible population of size = 100000
+# by 1 infected individual (thus S=100000-1)
+# 2. The disease has a latent stage (E)
+# 3. Individuals become temporarily immune for 180 days, after which they become
+# suceptible again
+# 4. Not all cases are reported, studies suggest that the reported fraction may be between 5 and 20%.
+# 5. The latent period lasts for 6 days
+# 6. The duration of infectiousness is estimated between 4 and 8 days
+# 7. The data consist of daily new reported cases
+# 8. The population size is constant, no deaths, births or migrations
+# 9. The disease appears less transmissible than the one from exercise 1-3 
 
+# We will add temporary (waning) immunity to the model:
 
-# Model comparison ----------------------------------
+# a) Read and plot the data
+data4 <- readRDS("data_ex4.rds")
 
-# Calculate the Bayes Factor of two models
-M1 <- marginalLikelihood(chains_model1, start=nburn)
-M2 <- marginalLikelihood(chains_model2, start=nburn)
+# b) Use model_SEIR and adjust the code to reflect the waning of immunity
+model_SEIRS <- ...
 
-exp(M1$ln.ML - M2$ln.ML)
-# BF > 1 means the evidence is in favor of M1
+# c) Set up a vector of inits and a vector of theta
+inits4 <- ...
+theta4 <- ...
+
+# d) Set up an appropriate prior
+estpars4 <- ...
+index4 <- ...
+
+lower4 <- ...
+upper4 <- ...
+
+density4 <- ...
+sampler4 <- ...
+
+# e) Choose a function for the observation process and set up an appropriate loglikelihood function and a wrapper for BT
+# you can also use a function from any of the previous exercises, if you
+# think it is the appropriate observation process
+
+ll_4 <- ...
+ll_4_wrapper <- ...
+
+# f) fit the model. Here are some suggestions for settings:
+# These settings will take about 20 minutes to fit
+mcmc_settings4 <- list(iterations = 90000, 
+                       nrChains = 2)
+
+bayesianSetup4 <- createBayesianSetup(prior = prior4,
+                                      likelihood = ll_NB4_wrapper,
+                                      names = names(theta4[index4]),
+                                      parallel = FALSE)
+
+system.time({chain4 <- runMCMC(bayesianSetup = bayesianSetup4, 
+                               sampler = "DEzs", 
+                               settings = mcmc_settings4)})
 
