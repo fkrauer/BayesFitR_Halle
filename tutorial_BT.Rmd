@@ -64,6 +64,7 @@ First we load the required libraries and set a seed:
 library(deSolve)
 library(tidyverse)
 library(BayesianTools)
+library(coda)
 set.seed(42)
 ```
 
@@ -311,89 +312,117 @@ ll_Pois_wrapper(theta[index])
 
 ### Set up and run the MCMC
 
-Finally, we define the setup for the sampler and run the MCMC. We here choose the simplest sampler (MH), and run 3 chains with 2000 iterations each. It is not always easy to determine the number of iterations to run, the best thing to do is to start with something like 20_000 iterations (for random walk samplers only. For gradient-based samplers like HMC/NUTS you can start with 1000). We also want to run more than one chain to determine convergence. 
+Finally, we define the setup for the sampler and run the MCMC. We here choose the simplest sampler (standard Metropolis Hastings), and run 3 chains with 20_000 iterations each. It is not always easy to determine the number of iterations to run, the best thing to do is to start with something like 20_000 iterations (for random walk samplers only. For gradient-based samplers like HMC/NUTS you can start with 1000). We also want to run more than one chain to determine convergence. 
 
 Note that I have suppressed the messages to the console for this tutorial with `message = FALSE`, but you should have message enabled (the default) to monitor the progress of the fitting. 
 
 ```{r}
-# MCMC settings
-nchains <- 3
-iter_per_chain <- 50
-mcmc_settings <- list(iterations = iter_per_chain, 
-                      nrChains = nchains, message = FALSE)
-sampler_algo <- "Metropolis"
+mcmc_settings1 <- list(iterations = 20000, 
+                      nrChains = 3,
+                      message = FALSE,
+                      optimize=FALSE, 
+                      adapt=FALSE)
 
 bayesianSetup_unif <- createBayesianSetup(prior = prior_unif,
                                      likelihood = ll_Pois_wrapper,
                                      names = names(theta[index]),
                                      parallel = FALSE)
 
-system.time({chain_unif <- runMCMC(bayesianSetup = bayesianSetup_unif, 
-                              sampler = sampler_algo, 
-                              settings = mcmc_settings)})
+system.time({chain_unif1 <- runMCMC(bayesianSetup = bayesianSetup_unif, 
+                              sampler = "Metropolis", 
+                              settings = mcmc_settings1)})
+
 
 ```
 
 ### Diagnostics
 
-The first thing you do is to visually inspect the trace plots. As you can see, the initial, random parameter draws lead to three chains, which to not overlap. In this case, we simply have not run the chain long enough, but sometimes you can see a similar pattern even with 100_000s of iterations. This is usually the case when posterior geometry is complex, i.e. there are multiple modes, which the sampler cannot overcome. 
+The first thing you do is to visually inspect the trace plots:
+
 ```{r}
-plot(chain_unif)
+plot(chain_unif1)
+```
+
+The chains seem to have converged, but the mixing is very poor (not a caterpillar), the chains stick too long in one place This suggests that the proposal is poorly chosen. 
+
+The summary also shows that the rejection rate is very high:
+
+```{r}
+summary(chain_unif1)
+```
+
+We will thus try a adaptive MCMC, which alters the proposal distribution during the fit, and also extend the iterations:
+
+```{r}
+mcmc_settings2 <- list(iterations = 50000, 
+                      nrChains = 3,
+                      message = FALSE,
+                      optimize=FALSE, 
+                      adapt=TRUE)
+
+
+system.time({chain_unif2 <- runMCMC(bayesianSetup = bayesianSetup_unif, 
+                              sampler = "Metropolis", 
+                              settings = mcmc_settings2)})
+
 
 ```
 
-If we run the MCMC longer, we obtain a nice "caterpillar": 
+```{r}
+plot(chain_unif2)
+```
+
+Including the adaptation of the proposal has improved the mixing substantially. We emove the first 10_000 iterations (burn-in phase):
 
 ```{r}
-iter_per_chain <- 20000
-mcmc_settings <- list(iterations = iter_per_chain, 
-                      nrChains = nchains,
-                      message = FALSE)
-
-bayesianSetup_unif <- createBayesianSetup(prior = prior_unif,
-                                     likelihood = ll_Pois_wrapper,
-                                     names = names(theta[index]),
-                                     parallel = FALSE)
-
-system.time({chain_unif <- runMCMC(bayesianSetup = bayesianSetup_unif, 
-                              sampler = sampler_algo, 
-                              settings = mcmc_settings)})
-
-plot(chain_unif)
+nburn <- 15000
+plot(chain_unif2, parametersOnly = TRUE, start =nburn)
 
 ```
 
-Remove the first 10_000 iterations (burn-in phase):
-
 ```{r}
-nburn <- 10000
-plot(chain_unif, parametersOnly = TRUE, start =nburn)
-
+summary(chain_unif2)
 ```
+The rejection rate is much better and the effective sample size (ESS) has also increased. The ESS is an estimate for the number of independent samples (taking into account autocorrelation of the individual samples) generated by the MCMC run. There is no universal threshold for how large the ESS should be, but you should aim for at least 100 independent samples.  
+
 
 We then check convergence mathematically with the PSRF. The PSRF gives the scale reduction factor for each parameter. A PSRF of 1 means that variance between and within the chains are equal, which is the goal. As a rule of thumb, a if PSRF < 1.05, convergence is very likely. But you should always also check the traceplots
 
 ```{r}
-gelmanDiagnostics(chain_unif, plot=TRUE, start=nburn)
+gelmanDiagnostics(chain_unif2, plot=FALSE, start=nburn)
 
 ```
 
-It is also useful to summarise the chain object, which will also show the PSF as well as the parameter correlation and the effective sample size (ESS). The ESS is an estimate for the number of independent samples (taking into account autocorrelation of the individual samples) generated by the MCMC run. There is no universal threshold for how large the ESS should be, but you should aim for at least 500 independent samples (less for HMC). 
-
-```{r}
-summary(chain_unif)
-```
-
-It is always good to check parameter correlations. Sometimes these correlations can make inference more challenging, i.e. the posterior is too complex with several local modes. In that case, you may need to re-formulate (reparametrize) the model or run the chains for longer. However, ODE models are difficult to reparametrize. 
+It is also advised to check parameter correlations. Sometimes these correlations can make inference more challenging, i.e. the posterior is too complex with several local modes. In that case, you may need to re-formulate (reparametrize) the model or run the chains for longer. However, ODE models are difficult to reparametrize. 
 
 Depending on what the purpose of the model inference is, parameter correlation is a larger or smaller problem. If we are not too concerned about the mechanistic meaning of the parameters, we may accept some degree of parameter correlation. If we are intersted in learning about the mechanisms underlying the disease data, we may need to add additional data for the fitting and/or change the priors to narrow down the parameter space and reduce correlation. 
 
-In this example, the parameters are strongly correlated, but it did not impact the convergence of the chains, and we know the posteriors are correct, so we will leave the model as it is. 
 ```{r}
-correlationPlot(chain_unif, start=nburn)
+correlationPlot(chain_unif2, start=nburn)
 
 ```
 
+In this example, the parameters are strongly correlated, but 
+1) We still have convergence of the chains
+2) We know the posteriors are correct
+3) We cannot reparametrize this model.
+
+Thus, we will leave the model as it is and accept the parameter correlation. However, in a real life study, we would want to reduce this correlation. 
+
+We can also check the summary statistics of the marginal posteriors. For this, we need to convert the chain to a coda object and summarize. For a description of the marginal posteriors, we commonly use the median and the equal tailed 95% CrI (credible interval), which is the 2.5% and 97.5% percentile: 
+
+```{r}
+coda2 <- getSample(chain_unif2, parametersOnly = TRUE, coda=TRUE, start=nburn)
+summary(coda2)
+
+```
+
+Alternatively, you can choose the highest posterior density interval. We have to combine the chains to get an overall estimate:
+
+```{r}
+HPDinterval(mcmc(do.call(rbind, coda2)))
+
+```
 
 ## Evaluating the model fit
 
@@ -433,7 +462,7 @@ sample_posterior_Pois <- function(chain, theta, inits, times, model, ndraw, nbur
 Check the fit. Note that I use `progress="none"` to suppress the messages in the markdown file, but you should always monitor the progress with `progress="text"`
 
 ```{r}
-fit_quantiles <- sample_posterior_Pois(chain_unif, theta, inits, times, model_SEIR, ndraw=500, nburn=nburn, progress="none")
+fit_quantiles <- sample_posterior_Pois(chain_unif2, theta, inits, times, model_SEIR, ndraw=500, nburn=nburn, progress="none")
 
 # Plot fit
 ggplot() +
@@ -444,8 +473,19 @@ ggplot() +
 
 ```
 
+### Final assessment
 
-If the fit were poor, we would need to reformulate the model and/or the prior distributions, or add more data for fitting. 
+1. Does the trajectory fit look good?
+2. Is the chain mixing healthy?
+3. Have the chains converged?
+4. Are the marginal posteriors are biologically meaningful, unimodal and informative (not too wide)?
+
+In this example, we would conclude that the requirements are met and that we would keep the final model and chains. If the fit were poor, we would need to reformulate the model and/or the prior distributions, and/or add more data for fitting. 
+
+
+## Advanced usage
+
+### Custom priors
 
 Let's assume we would have to modify the priors to make them more informative. In BT, if you want a custom prior, you have to write out a designated density and sampler function. We will choose a truncated normal NT(0.5, 0.1) distribution for \beta, and a Beta(2,5) distribution for \sigma. Check [here](https://homepage.divms.uiowa.edu/~mbognar/applets/normal.html) and [here](https://homepage.divms.uiowa.edu/~mbognar/applets/beta.html and) to understand what these priors look like.   
 
@@ -503,7 +543,7 @@ prior_custom <- createPrior(density=density,
 
 ```
 
-Now update the MCMC settings and fit again:
+Now update the Bayesian setup and fit again:
 ```{r}
 bayesianSetup_custom <- createBayesianSetup(prior = prior_custom,
                                      likelihood = ll_Pois_wrapper,
@@ -511,18 +551,44 @@ bayesianSetup_custom <- createBayesianSetup(prior = prior_custom,
                                      parallel = FALSE)
 
 system.time({chain_custom <- runMCMC(bayesianSetup = bayesianSetup_custom, 
-                              sampler = sampler_algo, 
-                              settings = mcmc_settings)})
+                              sampler = "Metropolis", 
+                              settings = mcmc_settings2)})
 
 # Diagnostics
 plot(chain_custom)
 ```
 
-## Supplement
+### Model comparison
+
+We can calculate the Bayes Factor of two models and compare them to understand, which model is a better explanation of the data. Let's compare here the model with the uniform prior to the model with the custom prior.
+
+The simplest approach is to compare the DIC of both models. The best model is the one which minimises the DIC (the smaller the better):
+```{r}
+DIC(chain_unif2, start=nburn)$DIC 
+DIC(chain_custom, start=nburn)$DIC
+
+```
+
+We can also calculate the Bayes Factor, which is the ratio of the posteriors:
+A BF of < 1 supports the alternative model M1.
+A BF of > 1 supports original model M0
+
+
+```{r}
+M0 <- marginalLikelihood(chain_unif2, start=nburn)
+M1 <- marginalLikelihood(chain_custom, start=nburn)
+
+exp(M0$ln.ML - M1$ln.ML)
+
+```
+
+
+### Parallel sampling
+
 
 BT has an option to run the chains in parallel (if multiple chains are fitted). However, it is not always much faster than the non-parallel version. This option can be setup as follows:
 
-```{r}
+```{r, eval=FALSE}
 # You first have to check the maximum number of cpus you can use on your computer.
 library(parallel)
 detectCores()
@@ -551,9 +617,12 @@ stopParallel(bayesianSetup)
 
 ```
 
+
+### Chain extension
+
 You also have the option to extend a chain that has not converged yet, without starting from scratch. To do this, you can re-feed the chain object into the `runMCMC()` function. Note that this does not work if the original chain was run in parallel. 
 
-```{r}
+```{r, eval=FALSE}
 chain_ext <- runMCMC(bayesianSetup = chain, sampler = sampler_algo, settings = mcmc.settings)
 
 ```
