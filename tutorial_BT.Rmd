@@ -106,7 +106,7 @@ model_SEIR <- function(times, inits, theta) {
 
 Next, we define the parameters and the initial conditions for the model. The initial conditions assume that everyone is susceptible, except one person, which is the first infectious individual:
 ```{r params}
-beta <- 0.6 # transmission rate
+beta <- 0.55 # transmission rate
 sigma <- 1/5 # =1/duration of latency
 gamma <- 1/5 # = 1/duration of infectiousness
 theta <- c(beta=beta, sigma=sigma, gamma=gamma) # combine in one vector "theta"
@@ -115,7 +115,7 @@ inits <- c("S"=10000-1, "E"=0, "I"=1, "R"=0, "C"=1)
 
 ```
 
-We the define the time points at which the ODE solution is saved. Note, the unit of the time steps MUST BE the same as the unit of your parameters, i.e. if gamma = 1/5 days, then one time step (e.g. 1 to 2) is 1 day.
+We the define the time points at which the ODE solution is saved. Note, the unit of the time steps MUST BE the same as the unit of your parameters, i.e. if $\gamma$ = 1/5 days, then one time step (e.g. 1 to 2) is 1 day.
 Also remember that integration is computationally costly, so save only the time steps you need. 
 
 ```{r}
@@ -147,6 +147,7 @@ ggplot(traj) +
 We now generate some data from the model ("synthetic data") for the fitting process. The advantage of simulated data is that you know the "true" parameter values that generated the data, which makes learning about inference easier. 
 
 Since case data are commonly count data, we here assume that the observation process is a Poisson process:
+
 ```{r data}
 data <- data.frame(obs=sapply(traj$inc, function(x) rpois(1, x)),
                    time = times)
@@ -177,7 +178,7 @@ upper = c("beta"=0.5, "sigma"=0.1)
 
 ```
 
-We then create a prior object. BT has a function to "createUniformPrior()" to generate uniform priors for all parameters. It is a good starting point, but you often need to define other distributions for some priors. 
+We then create a prior object. BT has a function to `createUniformPrior()` to generate uniform priors for all parameters. It is a good starting point, but you often need to define other distributions for some priors. 
 
 ```{r}
 # Create uniform prior
@@ -189,7 +190,7 @@ prior_unif <- createUniformPrior(lower=lower,
 
 ### Prior predictive check
 
-Before we do any fitting, it is often useful to check whether the prior distributions you have chosen actually generate a model trajectory that overlaps with the data. If your prior is poorly specified, getting a posterior is not possible. We can do this by sampling from the prior and forward simulating the model trajectory with the sampled values. This is called the prior predictive check. The following function does this (cave: not optimised) and summarises the min and max trajectory values for each time step in the model. (You can also choose to sample `prob = c(0.025, 0.975)`, which will result in a 95% interval). The observation process (here a Poisson) is also included to account for the observation uncertainty: 
+Before we do any fitting, it is often useful to check whether the prior distributions you have chosen actually generate a model trajectory that overlaps with the data. If your prior is poorly specified, getting a posterior is not possible. We can do this by sampling from the prior and forward simulating the model trajectory with the sampled values. This is called the prior predictive check. The following function does this (cave: it's slow and not optimised) and summarises the min and max trajectory values for each time step in the model. (You can also choose to sample `prob = c(0.025, 0.975)`, which will result in a 95% interval). The observation process (here a Poisson) is also included to account for the observation uncertainty: 
 
 
 ```{r}
@@ -219,6 +220,7 @@ sample_prior_Pois <- function(prior, model, times, inits,
 ```
 
 Let's sample and plot:
+
 ```{r}
 priorpred <- sample_prior_Pois(prior_unif, model_SEIR, times, inits, 
                        theta, index, estpars, nsims=500)
@@ -285,6 +287,7 @@ ll_Pois <- function(model, theta, inits, times, data) {
 ```
 
 You should always test the LL function:
+
 ```{r}
 # test
 ll_Pois(model_SEIR, theta, inits, times, data)
@@ -292,6 +295,7 @@ ll_Pois(model_SEIR, theta, inits, times, data)
 ```
 
 We also have to define a wrapper function for the log-likelihood function, because BT requires that the LL-function takes only one argument, which are the estimated parameters. Remember to adjust this function when you change the names of the arguments of the likelihood function:
+
 ```{r}
 ll_Pois_wrapper <- function(par) {
   
@@ -343,7 +347,7 @@ The first thing you do is to visually inspect the trace plots:
 plot(chain_unif1)
 ```
 
-The chains seem to have converged, but the mixing is very poor (not a caterpillar), the chains stick too long in one place This suggests that the proposal is poorly chosen. 
+The chains seem to have converged, but the mixing is very poor (no caterpillar), the chains stick too long in one place suggesting that the proposal is poorly chosen. 
 
 The summary also shows that the rejection rate is very high:
 
@@ -372,7 +376,7 @@ system.time({chain_unif2 <- runMCMC(bayesianSetup = bayesianSetup_unif,
 plot(chain_unif2)
 ```
 
-Including the adaptation of the proposal has improved the mixing substantially. We emove the first 10_000 iterations (burn-in phase):
+Including the adaptation of the proposal has improved the mixing substantially. We remove the first 10_000 iterations (burn-in phase):
 
 ```{r}
 nburn <- 15000
@@ -429,6 +433,7 @@ HPDinterval(mcmc(do.call(rbind, coda2)))
 If the chains are healthy and converged, and the marginal posterior distributions are reasonable, we can check the fit to the data by evaluating the posterior predictive. The posterior predictive distribution is generated by taking random draws from the posterior and forward simulating the model trajectory. The simulated trajectories are then summarised over each time step in the model by calculating the percentiles, e.g. 2.5th and 97.5th percentile. The resulting uncertainty is called the (95%) posterior predictive interval. 
 
 The following function calculates the quantiles from a given model and posterior:
+
 ```{r}
 sample_posterior_Pois <- function(chain, theta, inits, times, model, ndraw, nburn, progress) {
   
@@ -480,16 +485,18 @@ ggplot() +
 3. Have the chains converged?
 4. Are the marginal posteriors are biologically meaningful, unimodal and informative (not too wide)?
 
-In this example, we would conclude that the requirements are met and that we would keep the final model and chains. If the fit were poor, we would need to reformulate the model and/or the prior distributions, and/or add more data for fitting. 
+In this example, we would conclude that the requirements are met and that we would keep the final model and chains. If the fit were poor, we would need to reformulate the model and/or the prior distributions, and/or add more data for fitting, or choose a different MCMC algorithm. More complex models are often difficult to fit with a Metropolis algorithm. Genetic algorithms, parallel tempering or gradient-based methods such as HMC/NUTS are more appropriate in these cases. 
+
+If the chains do not converge, it is often a problem of a complex posterior geometry due to a complex log likelihood surface. Tightening the priors can remove some of these issues, but it is useful to first investigate the log likelihood surface of the parameters of interest to understand how the priors should be adjusted. 
 
 
 ## Advanced usage
 
 ### Custom priors
 
-Let's assume we would have to modify the priors to make them more informative. In BT, if you want a custom prior, you have to write out a designated density and sampler function. We will choose a truncated normal NT(0.5, 0.1) distribution for \beta, and a Beta(2,5) distribution for \sigma. Check [here](https://homepage.divms.uiowa.edu/~mbognar/applets/normal.html) and [here](https://homepage.divms.uiowa.edu/~mbognar/applets/beta.html and) to understand what these priors look like.   
+Let's assume we would have to modify the priors to make them more informative. In BT, if you want a custom prior, you have to write out a designated density and sampler function. We will choose a truncated normal NT(0.5, 0.1) distribution for $\beta$, and a Beta(2,5) distribution for $\sigma$. Check [here](https://homepage.divms.uiowa.edu/~mbognar/applets/normal.html) and [here](https://homepage.divms.uiowa.edu/~mbognar/applets/beta.html and) to understand what these priors look like.   
 
-First we define the density function, which returns the joint (summed) values of the density functions of the sampled parameters. Cave: ensure that the order of the parameters in the density function corresponds to the order in `theta[index]`:
+First we define the density function, which returns the joint (summed) values of the density functions of the sampled parameters:
 
 ```{r}
 density <- function(par) {
@@ -511,7 +518,7 @@ density <- function(par) {
 
 ```
 
-The sampler function draws one sample from the defined prior distributions:
+The sampler function draws one sample from the defined prior distributions. Cave: ensure that the order of the parameters in the density function corresponds to the order in `theta[index]`:
 
 ```{r}
 sampler <-  function(n=1){
@@ -544,6 +551,7 @@ prior_custom <- createPrior(density=density,
 ```
 
 Now update the Bayesian setup and fit again:
+
 ```{r}
 bayesianSetup_custom <- createBayesianSetup(prior = prior_custom,
                                      likelihood = ll_Pois_wrapper,
@@ -563,6 +571,7 @@ plot(chain_custom)
 We can calculate the Bayes Factor of two models and compare them to understand, which model is a better explanation of the data. Let's compare here the model with the uniform prior to the model with the custom prior.
 
 The simplest approach is to compare the DIC of both models. The best model is the one which minimises the DIC (the smaller the better):
+
 ```{r}
 DIC(chain_unif2, start=nburn)$DIC 
 DIC(chain_custom, start=nburn)$DIC
@@ -572,7 +581,6 @@ DIC(chain_custom, start=nburn)$DIC
 We can also calculate the Bayes Factor, which is the ratio of the posteriors:
 A BF of < 1 supports the alternative model M1.
 A BF of > 1 supports original model M0
-
 
 ```{r}
 M0 <- marginalLikelihood(chain_unif2, start=nburn)
