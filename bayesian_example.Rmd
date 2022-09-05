@@ -1,0 +1,97 @@
+---
+title: "Step by step example for Bayesian inference"
+author: "Fabienne Krauer, adapted from Florian Hartig"
+date: "2022-09-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# The data
+
+Let's assume we have a coin, which is flipped 10 ten times and each time we try to guess whether it is heads or tails. We have guessed correctly in 8 out of 10 times.
+
+```{r}
+trials = 10
+success = 8
+```
+
+# The question
+
+We want to know what is the probability p of guessing the next coin toss correctly. 
+
+
+# The likelihood
+
+The likelihood function that describes the process of multiple coin flips is a Binomial likelihood. 
+
+Let's visualize the log-likelihood profile for a series of probabilities p of guessing correctly:
+
+```{r}
+# parameters to check
+parametervalues <- seq(0,1,0.001)
+# get the probability for all parametervalues
+loglik_profile <- dbinom(success, trials, parametervalues)
+# plot results
+plot(parametervalues, loglik_profile, type = "l")
+legend("topleft", legend = c("Likelihood", "maximum"), col = c("black", "red"), lwd = 1)
+abline(v=parametervalues[which.max(loglik_profile)], col = "red")
+```
+
+The MLE is p=0.8 (red line). 
+
+# The prior
+
+Let's first assume an uniformative (flat/uniform) prior for the probability p:
+
+```{r}
+prior <- rep(1,1001)
+```
+
+# The posterior
+
+Remember that posterior = (likelihood * prior) / marginal likelihood.
+
+The marginal likelihood (=normalisation constant) is the weighted average of the prior times the log-likelihood function over all possible values of theta. 
+
+```{r}
+marg_loglik <- sum(loglik_profile * prior) / length(parametervalues)
+```
+
+The posterior is then
+
+```{r}
+posterior <- loglik_profile * prior / marg_loglik
+
+plot(parametervalues, posterior, col = "darkgreen", type = "l")
+lines(parametervalues, loglik_profile)
+lines(parametervalues, prior, col = "red" )
+legend("topleft", c("likelihood", "prior", "posterior"), col = c("black", "red", "green"), lwd = 1 )
+```
+
+Since our prior is flat, the posterior has the same shape as the log-likelihood profile. However, the area under the curve of the posterior is now 1 (i.e. it integrates to one), because it is now a proper probability distribution for one parameter. 
+
+Let's change the prior to a normal distribution:
+
+```{r}
+prior <- dnorm(parametervalues, mean = 0.5, sd = 0.1)
+marg_loglik <- sum(loglik_profile * prior) / length(parametervalues)
+posterior <- loglik_profile * prior / marg_loglik
+
+plot(parametervalues, posterior, col = "darkgreen", type = "l")
+lines(parametervalues, loglik_profile)
+lines(parametervalues, prior, col = "red" )
+legend("topright", c("likelihood", "prior", "posterior"), col = c("black", "red", "green"), lwd = 1 )
+```
+
+The prior has pulled the posterior away from the log-likelihood. 
+
+
+
+
+
+
+
+

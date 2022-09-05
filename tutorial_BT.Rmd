@@ -487,7 +487,7 @@ ggplot() +
 
 In this example, we would conclude that the requirements are met and that we would keep the final model and chains. If the fit were poor, we would need to reformulate the model and/or the prior distributions, and/or add more data for fitting, or choose a different MCMC algorithm. More complex models are often difficult to fit with a Metropolis algorithm. Genetic algorithms, parallel tempering or gradient-based methods such as HMC/NUTS are more appropriate in these cases. 
 
-If the chains do not converge, it is often a problem of a complex posterior geometry due to a complex log likelihood surface. Tightening the priors can remove some of these issues, but it is useful to first investigate the log likelihood surface of the parameters of interest to understand how the priors should be adjusted. 
+If the chains do not converge, it is often a problem of a complex posterior geometry due to a complex log likelihood surface. Tightening the priors can remove some of these issues, but it is useful to first investigate the log likelihood surface of the parameters of interest to understand how the priors should be adjusted. Strictly speaking, the prior should be independent of the data (i.e. the log likelihood), but in reality you sometimes need to adjust the prior to get convergence at all for ODE models. 
 
 
 ## Advanced usage
@@ -570,7 +570,7 @@ plot(chain_custom)
 
 We can calculate the Bayes Factor of two models and compare them to understand, which model is a better explanation of the data. Let's compare here the model with the uniform prior to the model with the custom prior.
 
-The simplest approach is to compare the DIC of both models. The best model is the one which minimises the DIC (the smaller the better):
+The simplest approach is to compare the DIC of both models. The best model is the one which minimises the DIC (the smaller the better). Note that in real life we probably wouldn't compare two identical models which differ in their prior, but rather two different models. 
 
 ```{r}
 DIC(chain_unif2, start=nburn)$DIC 
