@@ -1,0 +1,147 @@
+---
+title: "Step by step example for Bayesian inference: analytical solution"
+author: "Fabienne Krauer"
+date: "2022-09-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Disclaimer
+This example is based on Richard McElreath's "globe tossing" example in "Statistical Rethinking" (3rd edition), see page 45. The code is adapted from [Florian Hartig](https://github.com/florianhartig/LearningBayes/blob/master/CommentedCode/01-Principles/InferenceMethods.md).
+
+## The question
+
+Let's assume we have a map of the world, and we want to figure out what proportion is covered by water. 
+
+## The data
+
+Do answer the question, we close our eyes and randomly point at the map and write down whether it is Water (0) or Land (1). We get the following data:
+
+```{r}
+data = c(0,0,1,0,1,1,0,1,1,1,0,0,1,0,0,0,1,0,1,0,1,0,0,1,0,0,1,1,0,0,1,0,1,0,0,1,0,1,0,0,0,0)
+```
+
+
+## The likelihood
+
+The likelihood function that describes the process of multiple Bernoulli events (0 or 1) is a Binomial likelihood. The parametrization requires to input the number of trials (=data points) and the number of successes (=n of data points with the value of interest (water)):
+
+```{r}
+loglik <- function(data, p) {
+  
+  trials = length(data)
+  success = length(data[data==0])
+  ll = dbinom(success, trials, p)
+
+  return(ll) 
+  
+}
+```
+
+Let's visualize the log-likelihood profile for a series of probabilities p = proportion of the globe covered with water:
+
+```{r}
+# parameters to check
+parametervalues <- seq(0,1,0.001)
+# get the probability for all parametervalues
+loglik_profile <- loglik(data, parametervalues)
+# plot results
+plot(parametervalues, loglik_profile, type = "l")
+legend("topleft", legend = c("Likelihood", "maximum"), col = c("black", "red"), lwd = 1)
+abline(v=parametervalues[which.max(loglik_profile)], col = "red")
+```
+
+The MLE is p=0.6 (red line). 
+
+## The prior
+
+Let's first assume we know nothing about how much landmass and watermass is. We define an uniformative (flat/uniform) prior for the probability p:
+
+# Set up the prior function
+```{r}
+prior_unif <- function(p){
+    prior <- dunif(p, min=0, max=1)
+    return(prior)
+}
+prior <- prior_unif(parametervalues)
+```
+
+
+## The posterior
+
+Remember that posterior = (likelihood * prior) / marginal likelihood.
+
+The marginal likelihood (=normalisation constant) is the weighted average of the prior times the log-likelihood function over all possible values of theta. 
+
+```{r}
+marg_loglik <- sum(loglik_profile * prior) / length(parametervalues)
+```
+
+In the analytical solution, we evaluate the log-likelihood function at every potential value of the parameter (p), hence the posterior is:
+
+```{r}
+posterior <- loglik_profile * prior / marg_loglik
+
+plot(parametervalues, posterior, col = "darkgreen", type = "l")
+lines(parametervalues, loglik_profile)
+lines(parametervalues, prior, col = "red" )
+legend("topleft", c("likelihood", "prior", "posterior"), col = c("black", "red", "green"), lwd = 1 )
+```
+
+Since our prior is flat, the posterior has the same shape as the log-likelihood profile. However, the area under the curve of the posterior is now 1 (i.e. it integrates to one), because it is now a proper probability distribution for one parameter. 
+
+## Rethinking the prior
+
+But actually we know from some previous geographical measurements ("literature") that the water mass is roughly 71%. 
+
+Let's change the prior to a narrow Beta distribution with Beta(75,25) with a mean of 0.75:
+
+```{r}
+prior_beta <- function(p, shape1, shape2){
+    prior <- dbeta(p, shape1 = shape1, shape2 = shape2)
+    return(prior)
+}
+prior <- prior_beta(parametervalues, 75, 25)
+```
+
+Update the marginal loglikelihood and recalculate the prior:
+
+```{r}
+marg_loglik <- sum(loglik_profile * prior) / length(parametervalues)
+posterior <- loglik_profile * prior / marg_loglik
+
+plot(parametervalues, posterior, col = "darkgreen", type = "l")
+lines(parametervalues, loglik_profile)
+lines(parametervalues, prior, col = "red" )
+legend("topleft", c("likelihood", "prior", "posterior"), col = c("black", "red", "green"), lwd = 1 )
+```
+
+The prior has pulled the posterior away from the log-likelihood because it is a tight prior distribution. 
+
+We can repeat it with a wider Beta prior Beta(15,5), which has the same mean, but a larger variance:
+
+```{r}
+prior <- prior_beta(parametervalues, 15, 5)
+```
+
+
+```{r}
+marg_loglik <- sum(loglik_profile * prior) / length(parametervalues)
+posterior <- loglik_profile * prior / marg_loglik
+
+plot(parametervalues, posterior, col = "darkgreen", type = "l")
+lines(parametervalues, loglik_profile)
+lines(parametervalues, prior, col = "red" )
+legend("topleft", c("likelihood", "prior", "posterior"), col = c("black", "red", "green"), lwd = 1 )
+```
+
+As you can see, in this case the prior did not have much influence on the data. The take-home message here is that you have to think carefully about the prior distributions, and how they are supported by literature. 
+
+
+
+
+
+

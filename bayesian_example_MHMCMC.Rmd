@@ -1,0 +1,148 @@
+---
+title: "Step by step example for Bayesian inference: MH MCMC solution"
+author: "Fabienne Krauer"
+date: "2022-09-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Disclaimer
+This example is based on Richard McElreath's "globe tossing" example in "Statistical Rethinking" (3rd edition), see page 45. 
+
+## The question
+
+Let's assume we have a map of the world, and we want to figure out what proportion is covered by water. 
+
+## The data
+
+Do answer the question, we close our eyes and randomly point at the map and write down whether it is Water (0) or Land (1). We get the following data:
+
+```{r}
+data = c(0,0,1,0,1,1,0,1,1,1,0,0,1,0,0,0,1,0,1,0,1,0,0,1,0,0,1,1,0,0,1,0,1,0,0,1,0,1,0,0,0,0,0,0,1,0,1,1,0,1,1,1,0,0,1,0,0,0,1,0,1,0,1,0,0,1,0,0,1,1,0,0,1,0,1,0,0,1,0,1,0,0,0,0)
+```
+
+
+## The likelihood
+
+The likelihood function that describes the process of multiple Bernoulli events (0 or 1) is a Binomial likelihood. The parametrization requires to input the number of trials (=data points) and the number of successes (=n of data points with the value of interest (water)):
+
+```{r}
+loglik <- function(data, p) {
+  
+  trials = length(data)
+  success = length(data[data==0])
+  ll = dbinom(success, trials, p, log=TRUE)
+
+  return(ll) 
+  
+}
+```
+
+
+# Set up the prior function:
+A beta prior with Beta(75,15) and a uniform prior U(0,1)
+```{r}
+prior_beta <- function(p) {
+    priordens <- dbeta(p, shape1 = 150, shape2 = 30, log=TRUE)
+    return(priordens)
+}
+
+prior_unif <- function(p){
+    priordens <- dunif(p, min=0, max=1, log=TRUE)
+    return(priordens)
+}
+```
+
+
+# Set up the posterior function ("target")
+
+```{r}
+# Posterior function
+posterior <- function(data, p){
+  
+   return (loglik(data, p) + prior_beta(p))
+}
+```
+
+# The MH MCMC
+
+```{r}
+MH_MCMC <- function(theta_init, proposal_sd, data, iterations){
+  
+    # Set up an empty matrix to hold the value of the proposed theta and the iteration
+    chain = matrix(NA, nrow=iterations+1, ncol=2)
+    
+    # The first sample is the initial values chosen
+    theta_current <- theta_init
+    
+    # evaluate the posterior for the current initial values of p
+    posterior_current <- posterior(data, theta_current)
+    
+    # Write the results to the chain array:
+    chain[1,1] = theta_current
+    chain[1,2] = 0
+
+    # run MCMC for every iteration:
+    for (i in seq_len(iterations)) {
+      
+      # 2. draw a new theta from the (Gaussian=Normal) proposal distribution
+      # with the mean being the current theta
+      theta_proposed <- rnorm(n = length(theta_current),
+                              mean = theta_current,
+                              sd = proposal_sd)
+      
+      # CAVE: the normal proposal can lead to theta being proposed outside its domain (0,1 for probabilites). We therefore need to rescale the proposed theta if this happens:
+      if(theta_proposed < 0) theta_proposed <- abs(theta_proposed)
+      if(theta_proposed > 1) theta_proposed <- 2-theta_proposed
+      
+      # 3. evaluate the posterior at the proposed theta
+      posterior_proposed <- posterior(data, theta_proposed)
+      
+      # 4. Compute the acceptance probability
+      # This is a substraction, because we work on a log-scale
+      # substraction on log scale == ratio on normal scale
+      ratio <- exp(posterior_proposed - posterior_current)
+      r = min(1, ratio) # this ensures that you always accept the proposed theta when it improves the posterior
+      
+      # 5. Draw random number number between 0 and 1 and establish whether to         accept the sample or not. If the random number is smaller than the              acceptance probability, then accept the proposal:
+      u <- runif(1)
+      
+      if (u <= r) {
+        
+        # change the current value of theta to the proposed theta
+        theta_current <- theta_proposed
+        
+        # updated the current value of the posterior
+        posterior_curent <- posterior_proposed
+        # Write the results to the array
+
+      }
+      
+    chain[i+1,1] <- theta_current
+    chain[i+1,2] <- i
+      
+    #message("iteration: ", i)
+
+      
+    }
+    
+    chain <- data.frame(chain)
+    colnames(chain) <- c("theta", "iter")
+    return(chain)
+}
+
+```
+
+
+```{r}
+n_samples <- 50000 # number of draws
+proposal_sd <- 0.007
+theta_init <- 0.5
+chain <- MH_MCMC(theta_init, proposal_sd, data, n_samples)
+ggplot(chain) + geom_line(aes(x=iter, y=theta))
+
+```
+
