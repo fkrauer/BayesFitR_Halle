@@ -9,12 +9,10 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Disclaimer
-This example is based on Richard McElreath's "globe tossing" example in "Statistical Rethinking" (3rd edition), see page 45. The code is adapted from [Florian Hartig](https://github.com/florianhartig/LearningBayes/blob/master/CommentedCode/01-Principles/InferenceMethods.md).
 
 ## The question
 
-Let's assume we have a map of the world, and we want to figure out what proportion is covered by water. 
+Let's assume we have a map of the world, and we want to figure out what proportion p is covered by water. 
 
 ## The data
 
@@ -22,12 +20,15 @@ Do answer the question, we close our eyes and randomly point at the map and writ
 
 ```{r}
 data = c(0,0,1,0,1,1,0,1,1,1,0,0,1,0,0,0,1,0,1,0,1,0,0,1,0,0,1,1,0,0,1,0,1,0,0,1,0,1,0,0,0,0)
+table(data)
 ```
 
 
 ## The likelihood
 
-The likelihood function that describes the process of multiple Bernoulli events (0 or 1) is a Binomial likelihood. The parametrization requires to input the number of trials (=data points) and the number of successes (=n of data points with the value of interest (water)):
+The likelihood function that describes the process of multiple Bernoulli events (0 or 1) is a Binomial likelihood. 
+
+The parametrization requires to input the number of trials (=data points) and the number of successes (=n of data points with the value of interest (water)):
 
 ```{r}
 loglik <- function(data, p) {
@@ -54,11 +55,11 @@ legend("topleft", legend = c("Likelihood", "maximum"), col = c("black", "red"), 
 abline(v=parametervalues[which.max(loglik_profile)], col = "red")
 ```
 
-The MLE is p=0.6 (red line). 
+The MLE is p=25/42=0.58 (red line). 
 
 ## The prior
 
-Let's first assume we know nothing about how much landmass and watermass is. We define an uniformative (flat/uniform) prior for the probability p:
+Let's first assume we know nothing about how much landmass and watermass there is. We define an uniformative (flat/uniform) prior for the probability p:
 
 # Set up the prior function
 ```{r}
@@ -141,7 +142,8 @@ legend("topleft", c("likelihood", "prior", "posterior"), col = c("black", "red",
 As you can see, in this case the prior did not have much influence on the data. The take-home message here is that you have to think carefully about the prior distributions, and how they are supported by literature. 
 
 
-
+## Disclaimer
+This example is based on Richard McElreath's "globe tossing" example in "Statistical Rethinking" (3rd edition), see page 45. The code is adapted from [Florian Hartig](https://github.com/florianhartig/LearningBayes/blob/master/CommentedCode/01-Principles/InferenceMethods.md).
 
 
 
