@@ -309,12 +309,15 @@ upper4 <- c(1.0, 1.0, 1.0, 1.0)
 prior4 <- createUniformPrior(lower=lower4, 
                              upper=upper4)
 names_theta4 <- c("beta1", "beta2", "beta3", "beta4")
-nchains4 <- 2
-iter_per_chain4 <- 12000
-sampler_algo4 <- "DEzs"
+nchains4 <- 3
+iter_per_chain4 <- 9000
+sampler_algo4 <- "Metropolis"
 
 mcmc_settings4 <- list(iterations = iter_per_chain4, 
-                       nrChains = nchains4)
+                       nrChains = nchains4,
+                       message = TRUE,
+                       optimize=FALSE, 
+                       adapt=TRUE)
 
 bayesianSetup4 <- createBayesianSetup(prior = prior4,
                                       likelihood = ll_Pois4_wrapper,
@@ -357,7 +360,7 @@ fit_quantiles4 <- sample_posterior_Pois4(chain4,
                                          times4, 
                                          model_SIR_age, 
                                          ndraw=500, 
-                                         nburn=1000, 
+                                         nburn=4000, 
                                          progress="text")
 
 # Merge the data with the fit for easier plotting
