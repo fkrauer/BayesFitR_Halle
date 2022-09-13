@@ -1,5 +1,6 @@
 sample_posterior_Pois <- function(chain, 
-                                  theta, 
+                                  theta,
+                                  index,
                                   inits, 
                                   times, 
                                   model, 
@@ -13,7 +14,8 @@ sample_posterior_Pois <- function(chain,
   fit <- plyr::adply(.data=sample, .margins=1, .progress=progress, .parallel=F, .fun=function(x) {
     
     #Define the theta as the estimated parameters from the current draw and the fixed parameters
-    theta_sample <- c(x, theta[!is.na(theta)])
+    theta_sample <- theta
+    theta_sample[index] <- x
     
     #Simulate trajectory for selected theta
     foo <- match.fun(model)(times, inits, theta_sample)
@@ -24,10 +26,17 @@ sample_posterior_Pois <- function(chain,
   
   colnames(fit)[1] <- "replicate"
   
-  quantiles <- plyr::ddply(.data=fit, 
-                           .variables="time", 
-                           function(x) quantile(x[, which(colnames(fit)=="simobs")], prob = c(0.025, 0.5, 0.975), na.rm=T)) 
-  colnames(quantiles) <- c("time", "low95PPI", "median", "up95PPI")
+  quantiles <- fit %>% group_by(time) %>% 
+    dplyr::summarise(low95PPI = quantile(simobs, prob=0.025),
+                     median = quantile(simobs, prob=0.5),
+                     up95PPI = quantile(simobs, prob=0.975))
+  
+  
+  # Alternative:
+  #quantiles <- plyr::ddply(.data=fit, 
+  #                         .variables="time", 
+  #                         function(x) quantile(x[, which(colnames(fit)=="simobs")], prob = c(0.025, 0.5, 0.975), na.rm=T)) 
+  #colnames(quantiles) <- c("time", "low95PPI", "median", "up95PPI")
   
   return(quantiles)
   

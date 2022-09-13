@@ -435,7 +435,15 @@ If the chains are healthy and converged, and the marginal posterior distribution
 The following function calculates the quantiles from a given model and posterior:
 
 ```{r}
-sample_posterior_Pois <- function(chain, theta, inits, times, model, ndraw, nburn, progress) {
+sample_posterior_Pois <- function(chain, 
+                                  theta,
+                                  index,
+                                  inits, 
+                                  times, 
+                                  model, 
+                                  ndraw, 
+                                  nburn, 
+                                  progress="text") {
   
   #Draw n fitted parameter vectors theta from the MCMC object
   sample <- getSample(chain, parametersOnly = TRUE, thin=1, numSamples=ndraw, start=nburn)
@@ -443,12 +451,13 @@ sample_posterior_Pois <- function(chain, theta, inits, times, model, ndraw, nbur
   fit <- plyr::adply(.data=sample, .margins=1, .progress=progress, .parallel=F, .fun=function(x) {
     
     #Define the theta as the estimated parameters from the current draw and the fixed parameters
-    theta_sample <- c(x, theta[!is.na(theta)])
+    theta_sample <- theta
+    theta_sample[index] <- x
     
     #Simulate trajectory for selected theta
     foo <- match.fun(model)(times, inits, theta_sample)
     foo$simobs <- sapply(foo$inc, function(y) rpois(n=1, lambda=y))
-
+    
     return(foo)
   })
   
@@ -461,13 +470,14 @@ sample_posterior_Pois <- function(chain, theta, inits, times, model, ndraw, nbur
   
   return(quantiles)
   
-}
+} 
+
 ```
 
 Check the fit. Note that I use `progress="none"` to suppress the messages in the markdown file, but you should always monitor the progress with `progress="text"`
 
 ```{r}
-fit_quantiles <- sample_posterior_Pois(chain_unif2, theta, inits, times, model_SEIR, ndraw=500, nburn=nburn, progress="none")
+fit_quantiles <- sample_posterior_Pois(chain_unif2, theta, index, inits, times, model_SEIR, ndraw=500, nburn=nburn, progress="none")
 
 # Plot fit
 ggplot() +
