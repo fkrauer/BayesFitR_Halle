@@ -85,8 +85,9 @@ ll_Pois_wrapper <- function(par) {
 # Test (should return the same as ll_pois())
 ll_Pois_wrapper(theta[index])
 
+
 # d) Check the fit
-fit_quantiles1 <- sample_posterior_Pois(chain1, theta, inits, times, model_SEIR, ndraw=500, nburn=10000, progress="text")
+fit_quantiles1 <- sample_posterior_Pois(chain1, theta, index, inits, times, model_SEIR, ndraw=500, nburn=10000, progress="text")
 
 # Plot fit
 ggplot() +
@@ -495,21 +496,21 @@ ggplot() +
 
 model_SIR_age <- function(times, inits, parms) {
   
-  SIR_age <- function(times, state, parms) {
+  sir <- function(time, state, parms) {
     
     N <- (state[(0*parms[["n.age"]]+1):(1*parms[["n.age"]])] + state[(1*parms[["n.age"]]+1):(2*parms[["n.age"]])] + state[(2*parms[["n.age"]]+1):(3*parms[["n.age"]])])
     
-    flow_I <- (state[(0*parms[["n.age"]]+1):(1*parms[["n.age"]])] * parms[["beta"]]) * (parms[["contacts"]] %*% ((state[(1*parms[["n.age"]]+1):(2*parms[["n.age"]])]))/N)
+    flow.I <- (state[(0*parms[["n.age"]]+1):(1*parms[["n.age"]])] * parms[["theta"]]) * (parms[["contacts"]] %*% ((state[(1*parms[["n.age"]]+1):(2*parms[["n.age"]])]))/N)
     
-    dS_N <- -flow_I + parms[["sigma"]] * state[(2*parms[["n.age"]]+1):(3*parms[["n.age"]])]
-    dI_N <-  flow_I                                                                           - parms[["gamma"]] * state[(1*parms[["n.age"]]+1):(2*parms[["n.age"]])]
-    dR_N <-           - parms[["sigma"]] * state[(2*parms[["n.age"]]+1):(3*parms[["n.age"]])] + parms[["gamma"]] * state[(1*parms[["n.age"]]+1):(2*parms[["n.age"]])] 
+    dS.N <- -flow.I + parms[["sigma"]] * state[(2*parms[["n.age"]]+1):(3*parms[["n.age"]])]
+    dI.N <-  flow.I                                                                           - parms[["gamma"]] * state[(1*parms[["n.age"]]+1):(2*parms[["n.age"]])]
+    dR.N <-           - parms[["sigma"]] * state[(2*parms[["n.age"]]+1):(3*parms[["n.age"]])] + parms[["gamma"]] * state[(1*parms[["n.age"]]+1):(2*parms[["n.age"]])] 
     
-    list(c(dS_N, dI_N, dR_N, flow_I))
-    
-  }  
+    return(list(c(dS.N, dI.N, dR.N, flow.I)))
+  }
+
   
-  traj <- data.frame(lsoda(y = inits, times = times, func = SIR_age, parms = params))
+  traj <- data.frame(lsoda(y = inits, times = times, func = sir, parms = parms))
   # Calculate the incidence per time step from the cumulative state:
   # This is very hacky, can be improved
   traj$inc1 <- c(inits["flow_I1"], diff(traj$flow_I1))
@@ -520,28 +521,32 @@ model_SIR_age <- function(times, inits, parms) {
   # reshape to long to match data
   traj <- traj %>% select(time, inc1, inc2, inc3, inc4) %>% 
               pivot_longer(traj, cols=c(2:5),
-                                names_to = "compartment",
-                                values_to = "cases") %>% 
-              arrange(time, compartment)
+                                names_to = "age",
+                                values_to = "inc") %>% 
+              arrange(time, age)
+  
+  traj$age <- as.numeric(gsub("inc", "", traj$age))
   
   return(traj)
   
 }
 
 
-traj4 <- model_SIR_age(times4, inits4, parms)
+traj4 <- model_SIR_age(times4, inits4, params)
 ggplot(traj4) +
-  geom_line(aes(x=time, y=cases, colour=as.factor(compartment))) +
+  geom_line(aes(x=time, y=inc, colour=as.factor(age))) +
   geom_point(data=data4, aes(x=DAY, y=CASES, colour=as.factor(AGE)))
 
+
 # LL
-ll_Pois4 <- function(model, theta, parms, inits, times, data) {
+
+ll_Pois4 <- function(model, theta, params, inits, times, data) {
   
-  parms$gamma <- theta
+  params[[4]] <- theta
   
-  traj <- match.fun(model)(times, inits, parms)
+  traj <- match.fun(model)(times, inits, params)
   datapoint <- data$CASES
-  modelpoint <- traj$cases
+  modelpoint <- traj$inc
   
   if (any(is.na(modelpoint))) {
     ll <- -Inf
@@ -557,7 +562,7 @@ ll_Pois4 <- function(model, theta, parms, inits, times, data) {
   return(ll)
 }
 
-ll_Pois4(model_SIR_age, params$theta, params, inits, times, data4)
+ll_Pois4(model_SIR_age, theta4, params, inits4, times4, data4)
 
 # LL wrapper
 ll_Pois4_wrapper <- function(par) {
@@ -566,7 +571,7 @@ ll_Pois4_wrapper <- function(par) {
   parX[index4] = par
   
   return(ll_Pois4(model=model_SIR_age,
-                  parms=params,
+                  params=params,
                   theta=parX, 
                   inits=inits4, 
                   times=times4, 
@@ -579,14 +584,13 @@ ll_Pois4_wrapper(theta4[index4])
 
 # Priors
 lower4 <- c(0.0, 0.0, 0.0, 0.0)
-upper4 <- c(0.6, 0.6, 0.6, 0.6)
-names(lower4) <- names(upper4) <- names(theta4)
+upper4 <- c(1.0, 1.0, 1.0, 1.0)
 
 prior4 <- createUniformPrior(lower=lower4, 
                                  upper=upper4)
-
+names_theta4 <- c("beta1", "beta2", "beta3", "beta4")
 nchains4 <- 2
-iter_per_chain4 <- 60000
+iter_per_chain4 <- 30000
 sampler_algo4 <- "DEzs"
 
 mcmc_settings4 <- list(iterations = iter_per_chain4, 
@@ -594,12 +598,53 @@ mcmc_settings4 <- list(iterations = iter_per_chain4,
 
 bayesianSetup4 <- createBayesianSetup(prior = prior4,
                                       likelihood = ll_Pois4_wrapper,
-                                      names = names(theta4[index4]),
+                                      names = names_theta4,
                                       parallel = FALSE)
 
 system.time({chain4 <- runMCMC(bayesianSetup = bayesianSetup4, 
                                sampler = sampler_algo4, 
                                settings = mcmc_settings4)})
+
+
+sample_posterior_Pois4 <- function(chain, 
+                                  theta, 
+                                  index,
+                                  params,
+                                  inits, 
+                                  times, 
+                                  model, 
+                                  ndraw, 
+                                  nburn, 
+                                  progress="text") {
+  
+  #Draw n fitted parameter vectors theta from the MCMC object
+  sample <- getSample(chain, parametersOnly = TRUE, thin=1, numSamples=ndraw, start=nburn)
+  
+  fit <- plyr::adply(.data=sample, .margins=1, .progress=progress, .parallel=F, .fun=function(x) {
+    
+    #Define the theta as the estimated parameters from the current draw and the fixed parameters
+    theta_sample <- theta
+    theta_sample[index] <- x
+    params[[4]] <- theta_sample
+    
+    #Simulate trajectory for selected theta
+    foo <- match.fun(model)(times, inits, params)
+    foo$simobs <- sapply(foo$inc, function(y) rpois(n=1, lambda=y))
+    
+    return(foo)
+  })
+  
+  colnames(fit)[1] <- "replicate"
+  
+  quantiles <- fit %>% group_by(age, time) %>% 
+                  dplyr::summarise(low95PPI = quantile(simobs, prob=0.025),
+                                   median = quantile(simobs, prob=0.5),
+                                   up95PPI = quantile(simobs, prob=0.975))
+  
+  return(quantiles)
+  
+} 
+
 
 
 
@@ -646,40 +691,40 @@ sigma <- 1/6
 gamma <- 1/7
 k <- 0.05
 
-theta4 <- c(beta=beta, sigma=sigma, gamma=gamma, omega=omega, rho=rho, k=k)
-inits4 <- c("S"=100000-1, "E"=0, "I"=1, "R"=0, "C"=1) 
+theta5 <- c(beta=beta, sigma=sigma, gamma=gamma, omega=omega, rho=rho, k=k)
+inits5 <- c("S"=100000-1, "E"=0, "I"=1, "R"=0, "C"=1) 
 
-times4 <- seq(1:1000)
+times5 <- seq(1:1000)
 
-traj4 <- model_SEIRS(times4, inits4, theta4)
+traj5 <- model_SEIRS(times5, inits5, theta5)
 
-ggplot(traj4) +
+ggplot(traj5) +
   geom_line(aes(x=time, y=inc))
 
-data4 <- data.frame(obs=sapply(traj4$inc, function(x) rnbinom(1, 
+data5 <- data.frame(obs=sapply(traj5$inc, function(x) rnbinom(1, 
                                                               mu = x * rho, 
                                                               size=1/k)),
-                   time = times4)
+                   time = times5)
 ggplot() + 
-  geom_line(data=traj4, aes(x=time, y=inc)) +
-  geom_point(data=data4, aes(x=time, y=obs))
+  geom_line(data=traj5, aes(x=time, y=inc)) +
+  geom_point(data=data5, aes(x=time, y=obs))
 
-saveRDS(data4, "data_ex4.rds")
+saveRDS(data5, "data_ex5.rds")
 
 
 # Set up the parameter vector and priors
-estpars4 <- c("beta", "gamma", "rho", "k") # parameters to estimate, can be modified
-index4 <- which(names(theta4) %in% estpars4) # index of estimated params
-theta4[index4]
+estpars5 <- c("beta", "gamma", "rho", "k") # parameters to estimate, can be modified
+index5 <- which(names(theta5) %in% estpars5) # index of estimated params
+theta5[index5]
 
 # We will fit a uniform prior for rho, and beta priors for the rest
-lower4 = c("beta"=0,  "gamma"=0, "rho"=0.05, "k"=0.0)
-upper4 = c("beta"=1.0,  "gamma" = 1.0, "rho"=0.2, "k"=1.0)
+lower5 = c("beta"=0,  "gamma"=0, "rho"=0.05, "k"=0.0)
+upper5 = c("beta"=1.0,  "gamma" = 1.0, "rho"=0.2, "k"=1.0)
 par1 = c("beta"=1.5,  "gamma"=2, "k"=1.0) 
 par2 = c("beta"=4.0,  "gamma"=9, "k"=50)
 
 
-density4 <- function(par) {
+density5 <- function(par) {
   
   return(
     dbeta(par[1], # Beta 
@@ -693,8 +738,8 @@ density4 <- function(par) {
             log = TRUE) +
       
       dunif(par[3], # rho
-            min = lower4[["rho"]], 
-            max = upper4[["rho"]], 
+            min = lower5[["rho"]], 
+            max = upper5[["rho"]], 
             log = TRUE) +
   
       dbeta(par[4], # k
@@ -705,7 +750,7 @@ density4 <- function(par) {
   )
 }
 
-sampler4 <-  function(n=1){
+sampler5 <-  function(n=1){
   
   return(cbind(
     
@@ -718,8 +763,8 @@ sampler4 <-  function(n=1){
           shape2 = par2[["gamma"]]),
     
     runif(n, 
-          min = lower4[["rho"]], 
-          max = upper4[["rho"]]),
+          min = lower5[["rho"]], 
+          max = upper5[["rho"]]),
     
     rbeta(n, 
           shape1 =  par1[["k"]], 
@@ -728,43 +773,43 @@ sampler4 <-  function(n=1){
   
 }
 
-prior4 <- createPrior(density=density4, 
-                      sampler=sampler4, 
-                      lower=lower4, 
-                      upper=upper4)
+prior5 <- createPrior(density=density5, 
+                      sampler=sampler5, 
+                      lower=lower5, 
+                      upper=upper5)
 
 
 # We will use the loglik NB function from exercise 3:
-ll_NB3(model_SEIRS, theta4, inits4, times4, data4)
+ll_NB3(model_SEIRS, theta5, inits5, times5, data5)
 
 # Update the wrapper
-ll_NB4_wrapper <- function(par) {
+ll_NB5_wrapper <- function(par) {
   
-  parX = theta4
-  parX[index4] = par
+  parX = theta5
+  parX[index5] = par
   
   return(ll_NB3(model=model_SEIRS,
                 theta=parX, 
-                inits=inits4, 
-                times=times4, 
-                data=data4))
+                inits=inits5, 
+                times=times5, 
+                data=data5))
 }    
 
 # Test
-ll_NB4_wrapper(theta4[index4])
+ll_NB5_wrapper(theta5[index5])
 
 # Setup the MCMC and run
-mcmc_settings4 <- list(iterations = 90000, 
+mcmc_settings5 <- list(iterations = 90000, 
                        nrChains = 2)
 
-bayesianSetup4 <- createBayesianSetup(prior = prior4,
-                                          likelihood = ll_NB4_wrapper,
-                                          names = names(theta4[index4]),
+bayesianSetup5 <- createBayesianSetup(prior = prior5,
+                                          likelihood = ll_NB5_wrapper,
+                                          names = names(theta5[index5]),
                                           parallel = FALSE)
 
-system.time({chain4 <- runMCMC(bayesianSetup = bayesianSetup4, 
+system.time({chain5 <- runMCMC(bayesianSetup = bayesianSetup5, 
                                     sampler = "DEzs", 
-                                    settings = mcmc_settings4)})
+                                    settings = mcmc_settings5)})
 
 
 

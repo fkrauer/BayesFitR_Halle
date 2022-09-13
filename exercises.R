@@ -219,7 +219,8 @@ fit_quantiles3 <- ...
 
 # For this exercise, we'll use the age stratified SIR model from this morning's extercise
 # and fit it to the age-stratified incidence data. 
-# Use the following inits and parameters. We will fit the four gamma params. 
+# Use the following inits and parameters
+# we will fit the 4 age-specific betas
 
 # Data
 data4 <- read.csv("data/observed_cases.csv")
@@ -231,6 +232,13 @@ times4 <- seq(0, 21, by = 1)
 pop <- 2500
 pop.prop <- c(0.2071654, 0.2151735, 0.3565182, 0.2211429)
 pop <- pop * pop.prop
+params.n.age <- 4
+
+# meta parameters
+meta.n.age <- 4
+meta.sar.b0 <- -2 # SAR
+meta.sar.b1 <- 0.2
+
 
 init.infect <- c(2,1,3,4)
 inits4 <- c(S = pop - init.infect, 
@@ -240,33 +248,135 @@ inits4 <- c(S = pop - init.infect,
 
 
 param.contacts <- read.csv("data/social_contact_matrix.csv")
-params.n.age <- 4
 
 params = list(n.age = params.n.age, # No. of age-groups
               gamma = c(1/2, 1/3, 1/3, 1/5), # Duration of Infection 51
               sigma = 1 / 180, # Duration if Recovered / Immunity 120
-              beta = 0.2, # transmission rate
+              theta = exp(meta.sar.b0 + seq(1, params.n.age) * meta.sar.b1) / (1 + exp(meta.sar.b0 + seq(1, params.n.age) * meta.sar.b1)), # age-specific secondary attack rate
               contacts = as.matrix(param.contacts))
 
-
-index4 <- c(1:4)
-theta4 <- params$gamma
-names(theta4) <- c("gamma1", "gamma2", "gamma3", "gamma3")
-
+theta4 <- params[[4]]
+index4 <- 1:length(theta4)
 
 # a) Expand the core model function such that it returns the result
-# of one model run. Use the model structure from exercises 1-3 as a template.
-# To reduce the amout of data in the memory during fitting, return only
-# the incidences of the four age groups. Remember to match the output format
-# to the format of the data to faciliate the log likelihood calculation.
+# of one model run. Use the template below.
+# To reduce the amount of data in the memory during fitting, return only
+# the incidences of the four age groups
 
-model_SIR_age <- ....
+model_SIR_age <- function(times, inits, parms) {
+  
+ ....
+  
+  traj <- data.frame(lsoda(y = inits, times = times, func = ..., parms = parms))
+  
+  # Calculate the incidence per time step from the cumulative state:
+  traj$inc1 <- ...
+  traj$inc2 <- ...
+  traj$inc3 <- ...
+  traj$inc4 <- ...
+  
+  # reshape to long to match data structure
+  traj <- traj %>% select(time, inc1, inc2, inc3, inc4) %>% 
+    pivot_longer(traj, cols=c(2:5),
+                 names_to = "age",
+                 values_to = "inc") %>% 
+                arrange(time, inc)
+  
+  traj$age <- as.numeric(gsub("inc", "", traj$age))
+  
+  return(traj)
+  
+}
 
-# b) Setup the log likelihood function and the wrapper
 
-# c)  Fit the model with BayesianTools with an appropriate sampler and settings. 
+# b) Setup the log likelihood function and the wrapper.
+# Remember that in this case we have a list object params as an argument to
+# the process model. However, only the vector theta (=betas), which is the 4. elemtn
+# of the list, is estimated. You need to add a line of code to update
+# the 4.th entry of the list "params" to the current theta. 
 
-# d) visualize the chain diagnostics and the fit
+ll_Pois4 <- ...
+
+
+ll_Pois4_wrapper <- ...
+
+
+# c)  Fit the model with BayesianTools with a uniform prior:
+
+lower4 <- c(0.0, 0.0, 0.0, 0.0)
+upper4 <- c(1.0, 1.0, 1.0, 1.0)
+
+prior4 <- createUniformPrior(lower=lower4, 
+                             upper=upper4)
+names_theta4 <- c("beta1", "beta2", "beta3", "beta4")
+nchains4 <- 2
+iter_per_chain4 <- 12000
+sampler_algo4 <- "DEzs"
+
+mcmc_settings4 <- list(iterations = iter_per_chain4, 
+                       nrChains = nchains4)
+
+bayesianSetup4 <- createBayesianSetup(prior = prior4,
+                                      likelihood = ll_Pois4_wrapper,
+                                      names = names_theta4,
+                                      parallel = FALSE)
+
+system.time({chain4 <- runMCMC(bayesianSetup = bayesianSetup4, 
+                               sampler = sampler_algo4, 
+                               settings = mcmc_settings4)})
+
+
+
+# d) update the posterior predictive function 
+# Use the function sample_posterior_Pois() as a template and fill the gaps below.
+# Add one line of code to ensure that the "theta" part of the params list 
+# is updated inside this function:
+sample_posterior_Pois4 <- function(chain, 
+                                   theta, 
+                                   index,
+                                   params,
+                                   inits, 
+                                   times, 
+                                   model, 
+                                   ndraw, 
+                                   nburn, 
+                                   progress="text") {
+  
+  ...
+  
+  
+}
+
+
+# e) Visualize the fit
+fit_quantiles4 <- sample_posterior_Pois4(chain4, 
+                                         theta4, 
+                                         index4,
+                                         params,
+                                         inits4, 
+                                         times4, 
+                                         model_SIR_age, 
+                                         ndraw=500, 
+                                         nburn=1000, 
+                                         progress="text")
+
+# Merge the data with the fit for easier plotting
+fit_data4 <- merge(fit_quantiles4,
+                   data4, 
+                   by.x=c("time", "age"),
+                   by.y=c("DAY", "AGE"), 
+                   all=T)
+
+ggplot(fit_data4) +
+  geom_point(aes(x=time, y=CASES, colour=as.factor(age))) +
+  geom_line(aes(x=time, y=median, colour=as.factor(age))) +
+  geom_ribbon(aes(x=time, ymin=low95PPI, ymax=up95PPI, fill=as.factor(age)), alpha=0.2)
+
+ggplot(fit_data4) +
+  geom_point(aes(x=time, y=CASES)) +
+  geom_line(aes(x=time, y=median)) +
+  geom_ribbon(aes(x=time, ymin=low95PPI, ymax=up95PPI), alpha=0.2) +
+  facet_wrap(~age)
 
 
 
