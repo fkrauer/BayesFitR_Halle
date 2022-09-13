@@ -62,9 +62,10 @@ Differential Evolution algorithms are genetic algorithms with multiple chains, w
 First we load the required libraries and set a seed:
 ```{r}
 library(deSolve)
-library(tidyverse)
-library(BayesianTools)
-library(coda)
+library(ggplot2)
+library(dplyr)
+library(BayesianTools) # For fitting
+library(coda) # For postprocessing of MCMC chain objects
 set.seed(42)
 ```
 
@@ -318,13 +319,18 @@ ll_Pois_wrapper(theta[index])
 
 Finally, we define the setup for the sampler and run the MCMC. We here choose the simplest sampler (standard Metropolis Hastings), and run 3 chains with 20_000 iterations each. It is not always easy to determine the number of iterations to run, the best thing to do is to start with something like 20_000 iterations (for random walk samplers only. For gradient-based samplers like HMC/NUTS you can start with 1000). We also want to run more than one chain to determine convergence. 
 
+The proposal is specified through the `proposalGenerator` argument. If it is `NULL`, the default standard deviation of 1 is chosen. If we set if manually, we specify the variance in the proposal for each parameter (standard deviation = square root of the variance). 
+
 Note that I have suppressed the messages to the console for this tutorial with `message = FALSE`, but you should have message enabled (the default) to monitor the progress of the fitting. 
 
 ```{r}
+proposal <-  createProposalGenerator(covariance = c(0.5, 0.5), message = TRUE)
+
 mcmc_settings1 <- list(iterations = 20000, 
                       nrChains = 3,
                       message = FALSE,
                       optimize=FALSE, 
+                      proposalGenerator=proposal,
                       adapt=FALSE)
 
 bayesianSetup_unif <- createBayesianSetup(prior = prior_unif,
@@ -355,7 +361,7 @@ The summary also shows that the rejection rate is very high:
 summary(chain_unif1)
 ```
 
-We will thus try a adaptive MCMC, which alters the proposal distribution during the fit, and also extend the iterations:
+We will thus try a adaptive MCMC, which alters the proposal distribution during the fit, and also extend the iterations. With the adaptive MH, we can let BT use the default covariance matrix and adapt it on its own during the burnin phase. 
 
 ```{r}
 mcmc_settings2 <- list(iterations = 50000, 
@@ -376,11 +382,11 @@ system.time({chain_unif2 <- runMCMC(bayesianSetup = bayesianSetup_unif,
 plot(chain_unif2)
 ```
 
-Including the adaptation of the proposal has improved the mixing substantially. We remove the first 10_000 iterations (burn-in phase):
+Including the adaptation of the proposal has improved the mixing substantially. We remove the first 20_000 iterations (burn-in phase):
 
 ```{r}
-nburn <- 15000
-plot(chain_unif2, parametersOnly = TRUE, start =nburn)
+nburn <- 20000
+plot(chain_unif2, parametersOnly = TRUE, start = nburn)
 
 ```
 
