@@ -28,19 +28,19 @@ set.seed(42)
 # Prep   -------------------------------
 
 # load models
-source("func_model.R")
+source("func/func_model.R")
 
 # load functions for prior and posterior predictive and loglik function
-source("func_priorpred_Pois.R")
-source("func_posteriorpred_Pois.R")
-source("func_ll_Pois.R")
-source("func_params.R")
+source("func/func_priorpred_Pois.R")
+source("func/func_posteriorpred_Pois.R")
+source("func/func_ll_Pois.R")
+source("func/func_params.R")
 
 
 # Exercise 1:  -------------------------------
 
 # a) load and plot the  synthetic data
-data1 <- readRDS("data_ex1.rds") 
+data1 <- readRDS("data/data_ex1.rds") 
 
 # b) Adjust the prior:
 # We will fit only to parameters for now:
@@ -215,9 +215,11 @@ fit_quantiles3 <- ...
 # If you have some time left at the end of the exercises, 
 # you can re-fit this model with an approach you think improves the posteriors
 
-
-
 # Exercise 4: ------------------------------------
+
+
+
+# Exercise 5: ------------------------------------
 
 # For this exercise, you will use simulated data from model_SEIRS, but you
 # will not know the true parameter values or how the data were generated.
@@ -241,43 +243,43 @@ fit_quantiles3 <- ...
 # We will add temporary (waning) immunity to the model:
 
 # a) Read and plot the data
-data4 <- readRDS("data_ex4.rds")
+data5 <- readRDS("data/data_ex5.rds")
 
 # b) Use model_SEIR and adjust the code to reflect the waning of immunity
 model_SEIRS <- ...
 
 # c) Set up a vector of inits and a vector of theta
-inits4 <- ...
-theta4 <- ...
+inits5 <- ...
+theta5 <- ...
 
 # d) Set up an appropriate prior
-estpars4 <- ...
-index4 <- ...
+estpars5 <- ...
+index5 <- ...
 
-lower4 <- ...
-upper4 <- ...
+lower5 <- ...
+upper5 <- ...
 
-density4 <- ...
-sampler4 <- ...
+density5 <- ...
+sampler5 <- ...
 
 # e) Choose a function for the observation process and set up an appropriate loglikelihood function and a wrapper for BT
 # you can also use a function from any of the previous exercises, if you
 # think it is the appropriate observation process
 
-ll_4 <- ...
-ll_4_wrapper <- ...
+ll_5 <- ...
+ll_5_wrapper <- ...
 
 # f) fit the model. Here are some suggestions for settings:
 # These settings will take about 20 minutes to fit
-mcmc_settings4 <- list(iterations = 90000, 
+mcmc_settings5 <- list(iterations = 90000, 
                        nrChains = 2)
 
-bayesianSetup4 <- createBayesianSetup(prior = prior4,
-                                      likelihood = ll_NB4_wrapper,
-                                      names = names(theta4[index4]),
+bayesianSetup5 <- createBayesianSetup(prior = prior5,
+                                      likelihood = ll_NB5_wrapper,
+                                      names = names(theta5[index5]),
                                       parallel = FALSE)
 
-system.time({chain4 <- runMCMC(bayesianSetup = bayesianSetup4, 
+system.time({chain5 <- runMCMC(bayesianSetup = bayesianSetup5, 
                                sampler = "DEzs", 
-                               settings = mcmc_settings4)})
+                               settings = mcmc_settings5)})
 
