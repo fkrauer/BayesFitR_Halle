@@ -492,36 +492,6 @@ ggplot() +
 
 # Exercise 4: ------------------------------------
 
-data4 <- read.csv("data/observed_cases.csv")
-
-# times
-times <- seq(0, 21, by = 1)
-
-# meta parameters
-meta.n.age <- 4
-meta.sar.b0 <- -2 # SAR
-meta.sar.b1 <- 0.2
-
-# Inits
-pop <- 2500
-pop.prop <- c(0.2071654, 0.2151735, 0.3565182, 0.2211429)
-pop <- pop * pop.prop
-
-init.infect <- c(2,1,3,4)
-inits <- c(S = pop - init.infect, 
-           I = init.infect, 
-           R = rep(0, meta.n.age), 
-           flow_I = rep(0, meta.n.age))
-
-
-param.contacts <- read.csv("data/social_contact_matrix.csv")
-params.n.age <- 4
-
-params = list(n.age = params.n.age, # No. of age-groups
-              gamma = c(1/2, 1/3, 1/3, 1/5), # Duration of Infection 51
-              sigma = 1 / 180, # Duration if Recovered / Immunity 120
-              theta = exp(meta.sar.b0 + seq(1, params.n.age) * meta.sar.b1) / (1 + exp(meta.sar.b0 + seq(1, params.n.age) * meta.sar.b1)), # age-specific secondary attack rate
-              contacts = as.matrix(param.contacts))
 
 model_SIR_age <- function(times, inits, parms) {
   
@@ -529,7 +499,7 @@ model_SIR_age <- function(times, inits, parms) {
     
     N <- (state[(0*parms[["n.age"]]+1):(1*parms[["n.age"]])] + state[(1*parms[["n.age"]]+1):(2*parms[["n.age"]])] + state[(2*parms[["n.age"]]+1):(3*parms[["n.age"]])])
     
-    flow_I <- (state[(0*parms[["n.age"]]+1):(1*parms[["n.age"]])] * parms[["theta"]]) * (parms[["contacts"]] %*% ((state[(1*parms[["n.age"]]+1):(2*parms[["n.age"]])]))/N)
+    flow_I <- (state[(0*parms[["n.age"]]+1):(1*parms[["n.age"]])] * parms[["beta"]]) * (parms[["contacts"]] %*% ((state[(1*parms[["n.age"]]+1):(2*parms[["n.age"]])]))/N)
     
     dS_N <- -flow_I + parms[["sigma"]] * state[(2*parms[["n.age"]]+1):(3*parms[["n.age"]])]
     dI_N <-  flow_I                                                                           - parms[["gamma"]] * state[(1*parms[["n.age"]]+1):(2*parms[["n.age"]])]
@@ -558,10 +528,16 @@ model_SIR_age <- function(times, inits, parms) {
   
 }
 
+
+traj4 <- model_SIR_age(times4, inits4, parms)
+ggplot(traj4) +
+  geom_line(aes(x=time, y=cases, colour=as.factor(compartment))) +
+  geom_point(data=data4, aes(x=DAY, y=CASES, colour=as.factor(AGE)))
+
 # LL
 ll_Pois4 <- function(model, theta, parms, inits, times, data) {
   
-  parms$theta <- theta
+  parms$gamma <- theta
   
   traj <- match.fun(model)(times, inits, parms)
   datapoint <- data$CASES
@@ -582,23 +558,48 @@ ll_Pois4 <- function(model, theta, parms, inits, times, data) {
 }
 
 ll_Pois4(model_SIR_age, params$theta, params, inits, times, data4)
-  
 
 # LL wrapper
 ll_Pois4_wrapper <- function(par) {
   
-  parX = theta2
-  parX[index2] = par
+  parX = theta4
+  parX[index4] = par
   
-  return(ll_Pois2(model=model_SEIR,
+  return(ll_Pois4(model=model_SIR_age,
+                  parms=params,
                   theta=parX, 
-                  inits=inits, 
-                  times=times, 
-                  data=data2))
+                  inits=inits4, 
+                  times=times4, 
+                  data=data4))
 }    
 
 # Test
-ll_Pois4_wrapper(theta2[index2])
+ll_Pois4_wrapper(theta4[index4])
+
+
+# Priors
+lower4 <- c(0.0, 0.0, 0.0, 0.0)
+upper4 <- c(0.6, 0.6, 0.6, 0.6)
+names(lower4) <- names(upper4) <- names(theta4)
+
+prior4 <- createUniformPrior(lower=lower4, 
+                                 upper=upper4)
+
+nchains4 <- 2
+iter_per_chain4 <- 60000
+sampler_algo4 <- "DEzs"
+
+mcmc_settings4 <- list(iterations = iter_per_chain4, 
+                       nrChains = nchains4)
+
+bayesianSetup4 <- createBayesianSetup(prior = prior4,
+                                      likelihood = ll_Pois4_wrapper,
+                                      names = names(theta4[index4]),
+                                      parallel = FALSE)
+
+system.time({chain4 <- runMCMC(bayesianSetup = bayesianSetup4, 
+                               sampler = sampler_algo4, 
+                               settings = mcmc_settings4)})
 
 
 

@@ -217,6 +217,57 @@ fit_quantiles3 <- ...
 
 # Exercise 4: ------------------------------------
 
+# For this exercise, we'll use the age stratified SIR model from this morning's extercise
+# and fit it to the age-stratified incidence data. 
+# Use the following inits and parameters. We will fit the four gamma params. 
+
+# Data
+data4 <- read.csv("data/observed_cases.csv")
+
+# times
+times4 <- seq(0, 21, by = 1)
+
+# Inits
+pop <- 2500
+pop.prop <- c(0.2071654, 0.2151735, 0.3565182, 0.2211429)
+pop <- pop * pop.prop
+
+init.infect <- c(2,1,3,4)
+inits4 <- c(S = pop - init.infect, 
+            I = init.infect, 
+            R = rep(0, meta.n.age), 
+            flow_I = rep(0, meta.n.age))
+
+
+param.contacts <- read.csv("data/social_contact_matrix.csv")
+params.n.age <- 4
+
+params = list(n.age = params.n.age, # No. of age-groups
+              gamma = c(1/2, 1/3, 1/3, 1/5), # Duration of Infection 51
+              sigma = 1 / 180, # Duration if Recovered / Immunity 120
+              beta = 0.2, # transmission rate
+              contacts = as.matrix(param.contacts))
+
+
+index4 <- c(1:4)
+theta4 <- params$gamma
+names(theta4) <- c("gamma1", "gamma2", "gamma3", "gamma3")
+
+
+# a) Expand the core model function such that it returns the result
+# of one model run. Use the model structure from exercises 1-3 as a template.
+# To reduce the amout of data in the memory during fitting, return only
+# the incidences of the four age groups. Remember to match the output format
+# to the format of the data to faciliate the log likelihood calculation.
+
+model_SIR_age <- ....
+
+# b) Setup the log likelihood function and the wrapper
+
+# c)  Fit the model with BayesianTools with an appropriate sampler and settings. 
+
+# d) visualize the chain diagnostics and the fit
+
 
 
 # Exercise 5: ------------------------------------
