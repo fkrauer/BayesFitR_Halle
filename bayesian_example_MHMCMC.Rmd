@@ -9,8 +9,13 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Disclaimer
-This example is based on Richard McElreath's "globe tossing" example in "Statistical Rethinking" (3rd edition), see page 45. 
+
+```{r}
+library(deSolve)
+library(ggplot2)
+set.seed(42)
+```
+
 
 ## The question
 
@@ -94,7 +99,9 @@ MH_MCMC <- function(theta_init, proposal_sd, data, iterations){
                               mean = theta_current,
                               sd = proposal_sd)
       
-      # CAVE: the normal proposal can lead to theta being proposed outside its domain (0,1 for probabilites). We therefore need to rescale the proposed theta if this happens:
+    # The next two lines are only required if your theta are proportions:
+    # The normal proposal can lead to theta being proposed outside its domain (0,1 for probabilites). 
+    # We therefore need to rescale the proposed theta if this happens:
       if(theta_proposed < 0) theta_proposed <- abs(theta_proposed)
       if(theta_proposed > 1) theta_proposed <- 2-theta_proposed
       
@@ -137,12 +144,17 @@ MH_MCMC <- function(theta_init, proposal_sd, data, iterations){
 ```
 
 
+We can run this MCMC, but the mixing is very poor, because there is no adaptation of the proposal. The purpose is mainly to demonstrate how the MH-MCMC is coded in practice. In reality, you would probably use a designated MCMC package, which is optimized for performance. 
+
 ```{r}
 n_samples <- 50000 # number of draws
-proposal_sd <- 0.007
+proposal_sd <- 0.003
 theta_init <- 0.5
 chain <- MH_MCMC(theta_init, proposal_sd, data, n_samples)
 ggplot(chain) + geom_line(aes(x=iter, y=theta))
 
 ```
+
+## Disclaimer
+This example is based on Richard McElreath's "globe tossing" example in "Statistical Rethinking" (3rd edition), see page 45. 
 
