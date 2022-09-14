@@ -7,6 +7,9 @@
 
 # Exercise 1 -------------------------------------------------------------------
 
+#a)
+traj1 <- model_SEIR(times, inits, theta)
+
 #b)
 # The Gamma distribution in R is modelled with dgamma() and rgamma(). 
 # The function allows two different parametrizations: 
@@ -115,7 +118,7 @@ ggplot() +
 # b) Modify prior
 
 lower2 = c("beta"=0, "sigma"=0, "rho"=0)
-upper2 = c("beta"=Inf, "sigma"=1.0, "rho"=1.0)
+upper2 = c("beta"=5, "sigma"=1.0, "rho"=1.0)
 par1 = c("beta"=1.5, "sigma"=2.0, "rho"=1.0) 
 par2 = c("beta"=2.0, "sigma"=5.0, "rho"=1.0)
 
@@ -207,6 +210,24 @@ ll_Pois2_wrapper <- function(par) {
 
 # Test
 ll_Pois2_wrapper(theta2[index2])
+
+# d)
+nchains2 <- 2
+iter_per_chain2 <- 90000
+sampler_algo2 <- "DEzs"
+
+mcmc_settings2 <- list(iterations = iter_per_chain2, 
+                       nrChains = nchains2)
+
+bayesianSetup2 <- createBayesianSetup(prior = prior2,
+                                      likelihood = ll_Pois2_wrapper,
+                                      names = names(theta2[index2]),
+                                      parallel = FALSE)
+
+system.time({chain2 <- runMCMC(bayesianSetup = bayesianSetup2, 
+                               sampler = sampler_algo2, 
+                               settings = mcmc_settings2)})
+
 
 # e) Inspect the chain and the model fit to the new data
 plot(chain2)
@@ -307,7 +328,7 @@ sample_k_inv(100)
 k = 0.1
 theta3 <- c(beta=beta, sigma=sigma, gamma=gamma, rho=rho, k=k)
 
-traj3 <- model(times, inits, theta)
+traj3 <- model_SEIR(times, inits, theta)
 data3 <- data.frame(obs=sapply(traj3$inc, function(x) rnbinom(1, 
                                                              mu = x*theta3[["rho"]], 
                                                              size=1/theta3[["k"]])),
@@ -421,6 +442,19 @@ ll_NB3_wrapper <- function(par) {
 ll_NB3_wrapper(theta3[index3])
 
 # e) Fit
+mcmc_settings3 <- list(iterations = 120000, 
+                       nrChains = 2)
+
+bayesianSetup3 <- createBayesianSetup(prior = prior3,
+                                      likelihood = ll_NB3_wrapper,
+                                      names = names(theta3[index3]),
+                                      parallel = FALSE)
+
+system.time({chain3 <- runMCMC(bayesianSetup = bayesianSetup3, 
+                               sampler = "DEzs", 
+                               settings = mcmc_settings3)})
+
+
 
 # f) Assess diagnostics and fit
 plot(chain3)
@@ -488,7 +522,7 @@ ggplot() +
 # sigma ~ Beta(15, 50)
 
 # If you have some time left at the end of the exercises, 
-# you can re-fit this model with tighter priors
+# you can re-fit this model with tighter priors. 
 
 
 # Exercise 4: ------------------------------------
@@ -538,6 +572,7 @@ ggplot(traj4) +
   geom_point(data=data4, aes(x=DAY, y=CASES, colour=as.factor(AGE)))
 
 
+
 # LL
 
 ll_Pois4 <- function(model, theta, params, inits, times, data) {
@@ -581,20 +616,22 @@ ll_Pois4_wrapper <- function(par) {
 # Test
 ll_Pois4_wrapper(theta4[index4])
 
-
-# Priors
+# c)
 lower4 <- c(0.0, 0.0, 0.0, 0.0)
 upper4 <- c(1.0, 1.0, 1.0, 1.0)
 
 prior4 <- createUniformPrior(lower=lower4, 
-                                 upper=upper4)
+                             upper=upper4)
 names_theta4 <- c("beta1", "beta2", "beta3", "beta4")
-nchains4 <- 2
-iter_per_chain4 <- 30000
-sampler_algo4 <- "DEzs"
+nchains4 <- 3
+iter_per_chain4 <- 9000
+sampler_algo4 <- "Metropolis"
 
 mcmc_settings4 <- list(iterations = iter_per_chain4, 
-                       nrChains = nchains4)
+                       nrChains = nchains4,
+                       message = TRUE,
+                       optimize=FALSE, 
+                       adapt=TRUE)
 
 bayesianSetup4 <- createBayesianSetup(prior = prior4,
                                       likelihood = ll_Pois4_wrapper,
@@ -606,7 +643,9 @@ system.time({chain4 <- runMCMC(bayesianSetup = bayesianSetup4,
                                settings = mcmc_settings4)})
 
 
-sample_posterior_Pois4 <- function(chain, 
+
+#d)
+sample_posterior4 <- function(chain, 
                                   theta, 
                                   index,
                                   params,
@@ -645,6 +684,36 @@ sample_posterior_Pois4 <- function(chain,
   
 } 
 
+# e)
+
+fit_quantiles4 <- sample_posterior4(chain4, 
+                                         theta4, 
+                                         index4,
+                                         params,
+                                         inits4, 
+                                         times4, 
+                                         model_SIR_age, 
+                                         ndraw=500, 
+                                         nburn=4000, 
+                                         progress="text")
+
+# Merge the data with the fit for easier plotting
+fit_data4 <- merge(fit_quantiles4,
+                   data4, 
+                   by.x=c("time", "age"),
+                   by.y=c("DAY", "AGE"), 
+                   all=T)
+
+ggplot(fit_data4) +
+  geom_point(aes(x=time, y=CASES, colour=as.factor(age))) +
+  geom_line(aes(x=time, y=median, colour=as.factor(age))) +
+  geom_ribbon(aes(x=time, ymin=low95PPI, ymax=up95PPI, fill=as.factor(age)), alpha=0.2)
+
+ggplot(fit_data4) +
+  geom_point(aes(x=time, y=CASES)) +
+  geom_line(aes(x=time, y=median)) +
+  geom_ribbon(aes(x=time, ymin=low95PPI, ymax=up95PPI), alpha=0.2) +
+  facet_wrap(~age)
 
 
 

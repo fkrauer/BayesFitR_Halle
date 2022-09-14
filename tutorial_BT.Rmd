@@ -260,7 +260,7 @@ This time the data range is covered in the prior predictive, meaning that the pr
 
 ### Likelihood function
 
-The log-likelihood function is the core of Bayesian inference. Again, we are assuming the observations arise from a Poisson process (count data). In BT, you need to define a function that takes the parameters and returns a single log-likelihood value:
+The log-likelihood function is the core of Bayesian inference. Again, we are assuming the observations arise from a Poisson process (count data). You need to define a function that takes the parameters and the data, and returns a single log-likelihood value ("the meat grinder"):
 
 
 ```{r}
@@ -321,7 +321,7 @@ Finally, we define the setup for the sampler and run the MCMC. We here choose th
 
 The proposal is specified through the `proposalGenerator` argument. If it is `NULL`, the default standard deviation of 1 is chosen. If we set if manually, we specify the variance in the proposal for each parameter (standard deviation = square root of the variance). 
 
-Note that I have suppressed the messages to the console for this tutorial with `message = FALSE`, but you should have message enabled (the default) to monitor the progress of the fitting. 
+Note that I have suppressed the messages to the console for this tutorial with `message = FALSE`, but you should have message enabled (the default) to monitor the progress of the fitting. If message is enabled, you will see the current iteration as well as the current log posterior. If you see that the log posterior value does not change at all, the chain is not moving and there may be something wrong with the model or the fitting. 
 
 ```{r}
 proposal <-  createProposalGenerator(covariance = c(0.5, 0.5), message = TRUE)
@@ -605,6 +605,29 @@ M1 <- marginalLikelihood(chain_custom, start=nburn)
 exp(M0$ln.ML - M1$ln.ML)
 
 ```
+
+### Alternative samplers: DEzs
+
+The DEzs sampler is more performant if your model is complex and there is some parameter correlation. The algorithm runs one group of 3 chains as a default. So the argument `nrChains` in the MCMC settings denotes the number of groups of 3. These three chains are not independent of each other, so to assess convergence, I recommend to run at least `nrChains=2` (which are 2*3 chains). The syntax is very similar to the Metropolis sampler:
+
+```{r}
+mcmc_settings2 <- list(iterations = 50000, 
+                      nrChains = 2,
+                      message = FALSE)
+
+bayesianSetup_unif <- createBayesianSetup(prior = prior_unif,
+                                     likelihood = ll_Pois_wrapper,
+                                     names = names(theta[index]),
+                                     parallel = FALSE)
+
+
+system.time({chain_unif2 <- runMCMC(bayesianSetup = bayesianSetup_unif, 
+                              sampler = "DEzs", 
+                              settings = mcmc_settings2)})
+
+
+```
+
 
 
 ### Parallel sampling
