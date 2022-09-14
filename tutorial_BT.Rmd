@@ -270,7 +270,7 @@ ll_Pois <- function(model, theta, inits, times, data) {
   datapoint <- data$obs
   modelpoint <- traj$inc
 
-
+  # if the model returns NA's, it is usually because there is an error in the omdel specification or the parameter values that are plugged in lead to failures in the integration steps of the model (for example when the model explodes, i.e. creates millions of individuals towards infinity). In these cases, the log-likelihood cannot be evaluated and we return -Inf. 
   if (any(is.na(modelpoint))) {
     ll <- -Inf
   } 
@@ -321,7 +321,7 @@ Finally, we define the setup for the sampler and run the MCMC. We here choose th
 
 The proposal is specified through the `proposalGenerator` argument. If it is `NULL`, the default standard deviation of 1 is chosen. If we set if manually, we specify the variance in the proposal for each parameter (standard deviation = square root of the variance). 
 
-Note that I have suppressed the messages to the console for this tutorial with `message = FALSE`, but you should have message enabled (the default) to monitor the progress of the fitting. If message is enabled, you will see the current iteration as well as the current log posterior. If you see that the log posterior value does not change at all, the chain is not moving and there may be something wrong with the model or the fitting. 
+Note that in the mcmc_settings I have suppressed the messages to the console for this tutorial with `message = FALSE`, but you should have message enabled (the default) to monitor the progress of the fitting. If message is enabled, you will see the current iteration as well as the current log posterior. If you see that the log posterior value does not change at all, the chain is not moving and there may be something wrong with the model or the fitting. 
 
 ```{r}
 proposal <-  createProposalGenerator(covariance = c(0.5, 0.5), message = TRUE)
@@ -608,7 +608,9 @@ exp(M0$ln.ML - M1$ln.ML)
 
 ### Alternative samplers: DEzs
 
-The DEzs sampler is more performant if your model is complex and there is some parameter correlation. The algorithm runs one group of 3 chains as a default. So the argument `nrChains` in the MCMC settings denotes the number of groups of 3. These three chains are not independent of each other, so to assess convergence, I recommend to run at least `nrChains=2` (which are 2*3 chains). The syntax is very similar to the Metropolis sampler:
+The DEzs sampler is more performant if your model is complex and there is some parameter correlation. The algorithm runs one group of 3 chains as a default. So the argument `nrChains` in the MCMC settings denotes the number of groups of 3. These three chains are not independent of each other, so to assess convergence, I recommend to run at least `nrChains=2` (which are 2*3 chains). The number of iterations is the total of all 3 chains, so if you want 10_000 iterations per chain, you set `iterations = 30000`. 
+
+The syntax is very similar to the Metropolis sampler:
 
 ```{r}
 mcmc_settings2 <- list(iterations = 50000, 
@@ -644,7 +646,7 @@ detectCores()
 cpus <- 2  
 
 
-# Options for parallel computing
+# Options for parallel computing. You need to pass all the functions and objects that are needed for the model evaluation to the "variables" list. 
 opts <- list(packages=list("BayesianTools", "deSolve"), 
              variables=list("theta", "data", "index", "times", "model", "inits","loglik"), 
              dlls=NULL)
