@@ -1,7 +1,7 @@
 # Halle Summer School
 # Exercises to fit an ODE model with BayesianTools
 # Author: Fabienne Krauer
-# last updated: 04.09.2022
+# last updated: 14.09.2022
 # contact: fabienne.krauer@lshtm.ac.uk
 
 
@@ -13,6 +13,19 @@
 # You should try to go through the exercises in ascending order.
 # If you cannot figure one out, check and run the solutions before moving on to the next exercise.
 
+# Exercises 1-3 and 5 use a homogeneous mixing SEIR model
+# Exercise 4 uses the age-stratified SIR model from this morning
+
+# Some of the exercise will take a couple of minutes to fit. While you wait,
+# you can have a look at bayesian_example_MHMCMC.html, which is a
+# simple example for the MH-MCMC I coded up. It is not optimized for 
+# performance, and specific for the example in the tutorial, so do not
+# use it for your own models :)
+
+# For the sake of time, don't run more than 3 chains for MH-MCMC or 
+# 2 groups of chains (=2*3) for DEzs
+
+# Most importantly:
 # NEVER NEVER adjust the window panes while you are fitting. 
 # It could crash the R session ("the bomb") and you need to start from scratch.
 
@@ -20,21 +33,22 @@
 # Household stuff  -------------------------------
 
 library(deSolve)
-library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
 library(BayesianTools)
 library(plyr)
+
 set.seed(42)
 
 # Prep   -------------------------------
 
-# load models
-source("func/func_model.R")
-
-# load functions for prior and posterior predictive and loglik function
-source("func/func_priorpred_Pois.R")
-source("func/func_posteriorpred_Pois.R")
-source("func/func_ll_Pois.R")
-source("func/func_params.R")
+# load other scripts
+source("func/func_model.R") # contains the SEIR model
+source("func/func_priorpred_Pois.R") # contains a function to simulate from the prior
+source("func/func_posteriorpred_Pois.R") # contains a function to simulate from the posterior
+source("func/func_ll_Pois.R") # contains a Poisson log likelihood function and a wrapper for BT
+source("func/func_params.R") # contains the parameters, inits and times for exercises 1-3
 
 
 # Exercise 1:  -------------------------------
@@ -42,8 +56,10 @@ source("func/func_params.R")
 # a) load and plot the  synthetic data
 data1 <- readRDS("data/data_ex1.rds") 
 
-# b) Adjust the prior:
-# We will fit only to parameters for now:
+# run the model one
+traj1 <- ...
+
+# b) # We will fit only to parameters for now:
 estpars <- c("beta", "sigma")
 index <- which(names(theta) %in% estpars) # index of estimated params
 lower = c("beta"=1e-6, "sigma"=1e-6)
@@ -51,8 +67,8 @@ upper = c("beta"=5, "sigma"=1)
 
 # Write a custom prior such that the 
 # 'beta' parameter follows a Gamma distribution with a mean = 0.75 and a variance = 0.375. 
-# For the 'sigma' parameter, use the prior from the tutorial
 # HINT: check the wikipedia page to understand the properties of the Gamma distribution
+# For the 'sigma' parameter, use the prior from the tutorial
 
 density1 <- ...
 
@@ -62,7 +78,7 @@ sampler1 <- ...
 ll_Pois_wrapper <- ...
 
 
-# d) Use the same MCMC settings as in the tutorial:
+# d) Use the same MCMC settings as in the tutorial (adaptive MH)
 nchains <- 2
 iter_per_chain <- 20000
 mcmc_settings <- list(iterations = iter_per_chain, 
@@ -79,7 +95,10 @@ system.time({chain1 <- runMCMC(bayesianSetup = bayesianSetup1,
                                sampler = sampler_algo, 
                                settings = mcmc_settings)})
 
+
 # If the chains are converged, check the posterior predictive (the fit)
+# with the function sample_posterior_Pois()
+
 
 
 # Exercise 2:  ------------------------------------
@@ -110,23 +129,11 @@ ll_Pois2 <-
 ll_Pois2_wrapper <- 
 
 # d) Fit the model with the new ll function. 
-# Use the following settings for the fitting:
-nchains2 <- 2
-iter_per_chain2 <- 60000
-sampler_algo2 <- "DEzs"
+# Choose a smapler, n of iterations and nr of chains you think is appropriate. 
+# (Don't run more than 90_000 iterations for DEzs or 30_000 for Metropolis for the sake of time
+# even if the chains are not mixing perfectly)
 
-mcmc_settings2 <- list(iterations = iter_per_chain2, 
-                      nrChains = nchains2)
-
-bayesianSetup2 <- createBayesianSetup(prior = prior2,
-                                      likelihood = ll_Pois2_wrapper,
-                                      names = names(theta2[index2]),
-                                      parallel = FALSE)
-
-system.time({chain2 <- runMCMC(bayesianSetup = bayesianSetup2, 
-                               sampler = sampler_algo2, 
-                               settings = mcmc_settings2)})
-
+chain2 <- ...
 
 # e) Inspect the chain and the model fit to the new data.
 # You will need to adjust the function sample_posterior_Pois to account for the underreporting
@@ -134,8 +141,6 @@ system.time({chain2 <- runMCMC(bayesianSetup = bayesianSetup2,
 sample_posterior_Pois2 <- ...
 
 fit_quantiles2 <- ...
-
-
 
 
 # Exercise 3: ------------------------------------
@@ -186,21 +191,13 @@ sample_k <- function(k) {
 # d) Adapt the loglik function and the wrapper function. 
 # Keep the underreporting from exercise 2.
 
-# d) Fit the model with the new loglik function
-# Use the following MCMC settings
-mcmc_settings3 <- list(iterations = 150000, 
-                      nrChains = 2)
 
-bayesianSetup3 <- createBayesianSetup(prior = prior3,
-                                      likelihood = ll_NB3_wrapper,
-                                      names = names(theta3[index3]),
-                                      parallel = FALSE)
+# d) Fit the model with the new loglik function.
+# Choose a smapler, n of iterations and nr of chains you think is appropriate. 
+# (Don't run more than 120_000 iterations for DEzs or 50_000 for Metropolis for the sake of time
+# even if the chains are not mixing perfectly)
 
-# This will take about 10 minutes to fit. You can start with Exercise 4 in the meanwhile
-system.time({chain3 <- runMCMC(bayesianSetup = bayesianSetup3, 
-                               sampler = sampler_algo2, 
-                               settings = mcmc_settings3)})
-
+chain3 <- ...
 
 # e) Inspect the chain and the model fit to the new data
 # You will need to adjust the posterior predictive to account for the new loglik function
@@ -214,16 +211,20 @@ fit_quantiles3 <- ...
 
 # If you have some time left at the end of the exercises, 
 # you can re-fit this model with an approach you think improves the posteriors
+# For now, move on to ex 4
+
 
 # Exercise 4: ------------------------------------
 
 # For this exercise, we'll use the age stratified SIR model from this morning's extercise
-# and fit it to the age-stratified incidence data. 
-# Use the following inits and parameters
-# we will fit the 4 age-specific betas
+# and fit it to the age-stratified incidence data. Ignore underreporting for this exercise. 
+# Use the following inits and parameters. Fit the 4 age-specific betas
 
 # Data
-data4 <- read.csv("data/observed_cases.csv")
+data4 <- readRDS("data/data_ex4.rds")
+
+ggplot(data4) + geom_point(aes(x=DAY, y=CASES)) + facet_wrap(~AGE)
+
 
 # times
 times4 <- seq(0, 21, by = 1)
@@ -289,52 +290,30 @@ model_SIR_age <- function(times, inits, parms) {
 }
 
 
-# b) Setup the log likelihood function and the wrapper.
+# b) Setup the log likelihood function and the wrapper with a likelihood function
+# you think is appropriate for the type of data and amount of dispersion.
 # Remember that in this case we have a list object params as an argument to
 # the process model. However, only the vector theta (=betas), which is the 4. elemtn
 # of the list, is estimated. You need to add a line of code to update
 # the 4.th entry of the list "params" to the current theta. 
 
-ll_Pois4 <- ...
+ll_4 <- ...
 
 
-ll_Pois4_wrapper <- ...
+ll_wrapper <- ...
 
 
-# c)  Fit the model with BayesianTools with a uniform prior:
+# c)  Define a prior you think is appropriate and fit the model with a sampler
+# you think is appropriate. Don't run more than 10_000 iterations for Metropolis, or 30_000 for DEzs. 
 
-lower4 <- c(0.0, 0.0, 0.0, 0.0)
-upper4 <- c(1.0, 1.0, 1.0, 1.0)
-
-prior4 <- createUniformPrior(lower=lower4, 
-                             upper=upper4)
-names_theta4 <- c("beta1", "beta2", "beta3", "beta4")
-nchains4 <- 3
-iter_per_chain4 <- 9000
-sampler_algo4 <- "Metropolis"
-
-mcmc_settings4 <- list(iterations = iter_per_chain4, 
-                       nrChains = nchains4,
-                       message = TRUE,
-                       optimize=FALSE, 
-                       adapt=TRUE)
-
-bayesianSetup4 <- createBayesianSetup(prior = prior4,
-                                      likelihood = ll_Pois4_wrapper,
-                                      names = names_theta4,
-                                      parallel = FALSE)
-
-system.time({chain4 <- runMCMC(bayesianSetup = bayesianSetup4, 
-                               sampler = sampler_algo4, 
-                               settings = mcmc_settings4)})
-
+chain4 <- ...
 
 
 # d) update the posterior predictive function 
 # Use the function sample_posterior_Pois() as a template and fill the gaps below.
 # Add one line of code to ensure that the "theta" part of the params list 
 # is updated inside this function:
-sample_posterior_Pois4 <- function(chain, 
+sample_posterior_4 <- function(chain, 
                                    theta, 
                                    index,
                                    params,
@@ -352,34 +331,7 @@ sample_posterior_Pois4 <- function(chain,
 
 
 # e) Visualize the fit
-fit_quantiles4 <- sample_posterior_Pois4(chain4, 
-                                         theta4, 
-                                         index4,
-                                         params,
-                                         inits4, 
-                                         times4, 
-                                         model_SIR_age, 
-                                         ndraw=500, 
-                                         nburn=4000, 
-                                         progress="text")
 
-# Merge the data with the fit for easier plotting
-fit_data4 <- merge(fit_quantiles4,
-                   data4, 
-                   by.x=c("time", "age"),
-                   by.y=c("DAY", "AGE"), 
-                   all=T)
-
-ggplot(fit_data4) +
-  geom_point(aes(x=time, y=CASES, colour=as.factor(age))) +
-  geom_line(aes(x=time, y=median, colour=as.factor(age))) +
-  geom_ribbon(aes(x=time, ymin=low95PPI, ymax=up95PPI, fill=as.factor(age)), alpha=0.2)
-
-ggplot(fit_data4) +
-  geom_point(aes(x=time, y=CASES)) +
-  geom_line(aes(x=time, y=median)) +
-  geom_ribbon(aes(x=time, ymin=low95PPI, ymax=up95PPI), alpha=0.2) +
-  facet_wrap(~age)
 
 
 
